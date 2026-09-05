@@ -41,7 +41,7 @@ export interface Settings {
     USD_TO_AOA: number;
     NAD_TO_AOA: number;
   };
-  vehicles: [VehicleConfig, VehicleConfig, VehicleConfig];
+  vehicles: VehicleConfig[];
   monthlyIncomePerVehicleNAD: number;
   monthlyFreedomTargetNAD: number;
   reinvestmentPct: number;
@@ -59,6 +59,7 @@ export interface FleetState {
   lastBriefingDate: string | null;
   firstDepositMade: boolean;
   createdAt: string;
+  pendingNotifications: { achievementIds: string[]; xpGained: number; vehicleReady: number | null };
 }
 
 export interface Achievement {

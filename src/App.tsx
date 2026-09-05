@@ -4,11 +4,17 @@ import { FleetProvider } from './store';
 import { GarageView } from './views/GarageView';
 import { HistoryView } from './views/HistoryView';
 import { SettingsView } from './views/SettingsView';
+import { SplashScreen } from './components/SplashScreen';
 
 type Tab = 'garage' | 'history' | 'settings';
 
 function AppContent() {
   const [tab, setTab] = useState<Tab>('garage');
+  const [showSplash, setShowSplash] = useState(true);
+
+  if (showSplash) {
+    return <SplashScreen onComplete={() => setShowSplash(false)} />;
+  }
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white max-w-[480px] mx-auto relative overflow-x-hidden">
@@ -18,7 +24,7 @@ function AppContent() {
         <div className="absolute bottom-0 left-0 w-64 h-64 bg-amber-500/[0.02] rounded-full blur-3xl" />
       </div>
 
-      <div className="relative z-10">
+      <div className="relative z-10" style={{ animation: 'contentSlideUp 0.4s ease-out' }}>
         {tab === 'garage' && <GarageView />}
         {tab === 'history' && <HistoryView />}
         {tab === 'settings' && <SettingsView />}

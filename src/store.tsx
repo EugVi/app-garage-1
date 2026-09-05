@@ -1,7 +1,18 @@
 import { createContext, useCallback, useContext, useEffect, useReducer } from 'react';
-import type { FleetState, Settings, Transaction, TransactionSource } from './types';
-import { DEFAULT_SETTINGS, STORAGE_KEY } from './constants';
-import { defaultFleetState, isToday } from './utils/fleet';
+import type { FleetState, Settings, Transaction, TransactionSource, VehicleConfig, VehicleState } from './types';
+import { DEFAULT_SETTINGS, STORAGE_KEY, XP_REWARDS } from './constants';
+import { defaultFleetState, isToday, makeVehicle } from './utils/fleet';
+
+const XP_ACHIEVEMENT_MAP: Record<string, number> = {
+  first_fuel: XP_REWARDS.firstDeposit,
+  first_1000: XP_REWARDS.savingsMilestone,
+  halfway: XP_REWARDS.vehicleHalf,
+  fully_built: XP_REWARDS.vehicleComplete,
+  first_fleet: XP_REWARDS.savingsMilestone,
+  triple_threat: XP_REWARDS.allComplete,
+  thirty_days: XP_REWARDS.savingsMilestone,
+  consistency: XP_REWARDS.savingsMilestone,
+};
 
 type Action =
   | { type: 'HYDRATE'; state: FleetState }
@@ -11,11 +22,13 @@ type Action =
   | { type: 'TOGGLE_EARNING'; vehicleId: number }
   | { type: 'RECORD_INCOME'; vehicleId: number; amountNAD: number }
   | { type: 'UPDATE_SETTINGS'; partial: Partial<Settings> }
+  | { type: 'ADD_VEHICLE'; config: VehicleConfig; name?: string }
   | { type: 'ADD_XP'; amount: number }
   | { type: 'UNLOCK_ACHIEVEMENT'; id: string }
   | { type: 'UPDATE_STREAK'; date: string }
   | { type: 'SET_BRIEFING_DATE'; date: string }
   | { type: 'IMPORT_STATE'; state: FleetState }
+  | { type: 'CLEAR_NOTIFICATIONS' }
   | { type: 'RESET' };
 
 function uid(): string {
@@ -100,7 +113,7 @@ function deductBurnout(state: FleetState, amount: number, vehicleId?: number): F
   return { ...state, vehicles };
 }
 
-function checkAchievements(state: FleetState): { state: FleetState; unlocked: string[] } {
+function checkAchievements(state: FleetState, prevState?: FleetState): { state: FleetState; unlocked: string[]; xpGained: number } {
   const newlyUnlocked: string[] = [];
   const have = new Set(state.unlockedAchievements);
   const tryUnlock = (id: string, cond: boolean) => {
@@ -119,15 +132,33 @@ function checkAchievements(state: FleetState): { state: FleetState; unlocked: st
   tryUnlock('first_1000', totalSaved >= DEFAULT_SETTINGS.rates.USD_TO_NAD * 1000);
   tryUnlock('halfway', v1Pct >= 50);
   tryUnlock('fully_built', v1.ready);
-  tryUnlock('first_fleet', state.vehicles[1].savedNAD > 0 || state.vehicles[1].deploymentSavedNAD > 0);
+  tryUnlock('first_fleet', state.vehicles[1]?.savedNAD > 0 || state.vehicles[1]?.deploymentSavedNAD > 0);
   tryUnlock('triple_threat', state.vehicles.every(v => v.ready));
   tryUnlock('thirty_days', totalSaved / (state.settings.monthlyFreedomTargetNAD / 30) >= 30);
   tryUnlock('consistency', state.streak.count >= 7);
 
-  return {
-    state: { ...state, unlockedAchievements: Array.from(have) },
-    unlocked: newlyUnlocked,
+  // XP from achievements
+  let xpGained = newlyUnlocked.reduce((sum, id) => sum + (XP_ACHIEVEMENT_MAP[id] || 0), 0);
+
+  // XP from vehicle transitions (ready/acquired state changes)
+  if (prevState) {
+    for (let i = 0; i < state.vehicles.length; i++) {
+      const cur = state.vehicles[i];
+      const prev = prevState.vehicles[i];
+      if (!prev) continue;
+      if (!prev.ready && cur.ready) {
+        xpGained += XP_REWARDS.vehicleReady;
+      }
+    }
+  }
+
+  const newState: FleetState = {
+    ...state,
+    unlockedAchievements: Array.from(have),
+    xp: state.xp + xpGained,
   };
+
+  return { state: newState, unlocked: newlyUnlocked, xpGained };
 }
 
 function reducer(state: FleetState, action: Action): FleetState {
@@ -166,8 +197,16 @@ function reducer(state: FleetState, action: Action): FleetState {
           },
         };
       }
-      const result = checkAchievements(newState);
-      return result.state;
+      const result = checkAchievements(newState, state);
+      const readyVehicleIdx = newState.vehicles.findIndex((v, i) => v.ready && !state.vehicles[i]?.ready);
+      return {
+        ...result.state,
+        pendingNotifications: {
+          achievementIds: result.unlocked,
+          xpGained: result.xpGained,
+          vehicleReady: readyVehicleIdx >= 0 ? readyVehicleIdx : null,
+        },
+      };
     }
 
     case 'BURNOUT': {
@@ -184,8 +223,15 @@ function reducer(state: FleetState, action: Action): FleetState {
         transactions: [tx, ...state.transactions],
       };
       newState = deductBurnout(newState, action.amountNAD, action.vehicleId);
-      const result = checkAchievements(newState);
-      return result.state;
+      const result = checkAchievements(newState, state);
+      return {
+        ...result.state,
+        pendingNotifications: {
+          achievementIds: result.unlocked,
+          xpGained: result.xpGained,
+          vehicleReady: null,
+        },
+      };
     }
 
     case 'RENAME_VEHICLE': {
@@ -215,6 +261,21 @@ function reducer(state: FleetState, action: Action): FleetState {
       return { ...state, settings: { ...state.settings, ...action.partial } };
     }
 
+    case 'ADD_VEHICLE': {
+      const newId = state.vehicles.length > 0
+        ? Math.max(...state.vehicles.map(v => v.id)) + 1
+        : 1;
+      const newVehicle = makeVehicle(newId, action.name);
+      return {
+        ...state,
+        vehicles: [...state.vehicles, newVehicle],
+        settings: {
+          ...state.settings,
+          vehicles: [...state.settings.vehicles, action.config],
+        },
+      };
+    }
+
     case 'ADD_XP': {
       return { ...state, xp: state.xp + action.amount };
     }
@@ -236,6 +297,10 @@ function reducer(state: FleetState, action: Action): FleetState {
       return action.state;
     }
 
+    case 'CLEAR_NOTIFICATIONS': {
+      return { ...state, pendingNotifications: { achievementIds: [], xpGained: 0, vehicleReady: null } };
+    }
+
     case 'RESET': {
       return defaultFleetState();
     }
@@ -253,6 +318,8 @@ export interface FleetContextValue {
   toggleEarning: (vehicleId: number) => void;
   recordIncome: (vehicleId: number, amountNAD: number) => void;
   updateSettings: (partial: Partial<Settings>) => void;
+  addVehicle: (config: VehicleConfig, name?: string) => void;
+  clearNotifications: () => void;
   importState: (state: FleetState) => void;
   reset: () => void;
 }
@@ -264,11 +331,18 @@ function loadState(): FleetState {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return defaultFleetState();
     const parsed = JSON.parse(raw) as FleetState;
-    // Merge with defaults to ensure new fields exist
+    const defaults = defaultFleetState();
     return {
-      ...defaultFleetState(),
+      ...defaults,
       ...parsed,
-      settings: { ...DEFAULT_SETTINGS, ...parsed.settings, rates: { ...DEFAULT_SETTINGS.rates, ...parsed.settings?.rates } },
+      settings: {
+        ...DEFAULT_SETTINGS,
+        ...parsed.settings,
+        rates: { ...DEFAULT_SETTINGS.rates, ...parsed.settings?.rates },
+        vehicles: parsed.settings?.vehicles?.length ? parsed.settings.vehicles : DEFAULT_SETTINGS.vehicles,
+      },
+      vehicles: parsed.vehicles?.length ? parsed.vehicles : defaults.vehicles,
+      pendingNotifications: parsed.pendingNotifications ?? { achievementIds: [], xpGained: 0, vehicleReady: null },
     };
   } catch {
     return defaultFleetState();
@@ -308,6 +382,14 @@ export function FleetProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'UPDATE_SETTINGS', partial });
   }, []);
 
+  const addVehicle = useCallback((config: VehicleConfig, name?: string) => {
+    dispatch({ type: 'ADD_VEHICLE', config, name });
+  }, []);
+
+  const clearNotifications = useCallback(() => {
+    dispatch({ type: 'CLEAR_NOTIFICATIONS' });
+  }, []);
+
   const importState = useCallback((s: FleetState) => {
     dispatch({ type: 'IMPORT_STATE', state: s });
   }, []);
@@ -317,7 +399,7 @@ export function FleetProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <FleetContext.Provider value={{ state, addFuel, burnout, renameVehicle, toggleEarning, recordIncome, updateSettings, importState, reset }}>
+    <FleetContext.Provider value={{ state, addFuel, burnout, renameVehicle, toggleEarning, recordIncome, updateSettings, addVehicle, clearNotifications, importState, reset }}>
       {children}
     </FleetContext.Provider>
   );

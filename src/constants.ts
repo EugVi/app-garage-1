@@ -2,6 +2,8 @@ import type { Achievement, CurrencyCode, Settings } from './types';
 
 export const STORAGE_KEY = 'fleet-garage-state-v1';
 
+export const INITIAL_VEHICLE_COUNT = 3;
+
 export const DEFAULT_SETTINGS: Settings = {
   currency: 'NAD',
   rates: {

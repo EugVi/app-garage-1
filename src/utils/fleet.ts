@@ -1,12 +1,22 @@
 import type { FleetState, Settings, VehicleConfig, VehicleState } from '../types';
-import { DEFAULT_SETTINGS } from '../constants';
+import { DEFAULT_SETTINGS, INITIAL_VEHICLE_COUNT } from '../constants';
+
+export function makeVehicle(id: number, name?: string): VehicleState {
+  return {
+    id,
+    name: name ?? `Vehicle ${String(id).padStart(2, '0')}`,
+    savedNAD: 0,
+    deploymentSavedNAD: 0,
+    acquired: false,
+    ready: false,
+    earning: false,
+    actualIncomeNAD: 0,
+  };
+}
 
 export function emptyVehicles(): VehicleState[] {
-  return [
-    { id: 1, name: 'The Pioneer', savedNAD: 0, deploymentSavedNAD: 0, acquired: false, ready: false, earning: false, actualIncomeNAD: 0 },
-    { id: 2, name: 'Vehicle 02', savedNAD: 0, deploymentSavedNAD: 0, acquired: false, ready: false, earning: false, actualIncomeNAD: 0 },
-    { id: 3, name: 'Vehicle 03', savedNAD: 0, deploymentSavedNAD: 0, acquired: false, ready: false, earning: false, actualIncomeNAD: 0 },
-  ];
+  const names = ['The Pioneer', 'Vehicle 02', 'Vehicle 03'];
+  return Array.from({ length: INITIAL_VEHICLE_COUNT }, (_, i) => makeVehicle(i + 1, names[i]));
 }
 
 export function defaultFleetState(): FleetState {
@@ -20,6 +30,7 @@ export function defaultFleetState(): FleetState {
     lastBriefingDate: null,
     firstDepositMade: false,
     createdAt: new Date().toISOString(),
+    pendingNotifications: { achievementIds: [], xpGained: 0, vehicleReady: null },
   };
 }
 
@@ -79,6 +90,10 @@ export function activeVehicleCount(state: FleetState): number {
 
 export function completedVehicleCount(state: FleetState): number {
   return state.vehicles.filter(v => v.ready).length;
+}
+
+export function allVehiclesComplete(state: FleetState): boolean {
+  return state.vehicles.length > 0 && state.vehicles.every(v => v.ready);
 }
 
 export function freedomDays(state: FleetState): number {

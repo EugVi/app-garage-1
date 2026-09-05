@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Fuel, Flame, Lock, ChevronRight, Zap, Sun, Trophy, TrendingUp, RotateCw, BarChart3 } from 'lucide-react';
+import { Fuel, Flame, Lock, ChevronRight, Zap, Sun, Trophy, TrendingUp, RotateCw, ChartBar as BarChart3, Plus } from 'lucide-react';
 import { useFleet } from '../store';
 import { GlassCard } from '../components/GlassCard';
 import { ProgressBar } from '../components/ProgressBar';
@@ -7,7 +7,10 @@ import { VehicleSVG } from '../components/VehicleSVG';
 import { RollingNumber } from '../components/RollingNumber';
 import { TransactionModal } from '../components/TransactionModal';
 import { VehicleDetail } from '../components/VehicleDetail';
+import { ExpandFleetModal } from '../components/ExpandFleetModal';
 import { Confetti } from '../components/Confetti';
+import { NotificationToast } from '../components/NotificationToast';
+import { FleetProgressRing } from '../components/FleetProgressRing';
 import { formatMoney } from '../utils/currency';
 import {
   fleetBalance,
@@ -20,6 +23,7 @@ import {
   nextMilestone,
   getFleetLevel,
   completedVehicleCount,
+  allVehiclesComplete,
   tradingProfitsAllocated,
 } from '../utils/fleet';
 import { sounds, playSound } from '../utils/sound';
@@ -30,6 +34,8 @@ import { ReinvestmentEngine } from '../views/ReinvestmentEngine';
 import { AchievementsView } from '../views/AchievementsView';
 import { BusinessMetrics } from '../views/BusinessMetrics';
 import type { VehicleStage, Settings } from '../types';
+
+const INITIAL_FLEET_SIZE = 3;
 
 export function GarageView() {
   const { state } = useFleet();
@@ -43,9 +49,12 @@ export function GarageView() {
   const [showReinvest, setShowReinvest] = useState(false);
   const [showAchievements, setShowAchievements] = useState(false);
   const [showBusiness, setShowBusiness] = useState(false);
+  const [showExpand, setShowExpand] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const [showComplete, setShowComplete] = useState(false);
   const prevCompleteRef = useRef(0);
+  const prevVehicleCountRef = useRef(state.vehicles.length);
+  const fleetWasCompleteRef = useRef(false);
 
   const balance = fleetBalance(state);
   const goal = totalFleetGoal(settings);
@@ -56,11 +65,11 @@ export function GarageView() {
   const milestone = nextMilestone(state);
   const level = getFleetLevel(state.xp);
   const tradingAllocated = tradingProfitsAllocated(state);
+  const fleetDone = allVehiclesComplete(state);
 
-  // Overall fleet progress for atmosphere
   const fleetPct = goal > 0 ? (balance / goal) * 100 : 0;
+  const hasExpanded = state.vehicles.length > INITIAL_FLEET_SIZE;
 
-  // Detect vehicle completion for confetti
   useEffect(() => {
     const currentComplete = completed;
     if (currentComplete > prevCompleteRef.current && currentComplete > 0) {
@@ -71,12 +80,23 @@ export function GarageView() {
     prevCompleteRef.current = currentComplete;
   }, [completed, settings.soundEnabled]);
 
-  // Detect fleet complete
   useEffect(() => {
-    if (completed === 3) {
+    if (fleetDone && !fleetWasCompleteRef.current) {
       setShowComplete(true);
+      fleetWasCompleteRef.current = true;
     }
-  }, [completed]);
+    if (!fleetDone) {
+      fleetWasCompleteRef.current = false;
+    }
+  }, [fleetDone]);
+
+  useEffect(() => {
+    if (state.vehicles.length > prevVehicleCountRef.current) {
+      playSound(settings.soundEnabled, sounds.levelUp);
+      haptics.unlock();
+    }
+    prevVehicleCountRef.current = state.vehicles.length;
+  }, [state.vehicles.length, settings.soundEnabled]);
 
   const isUnlocked = (i: number): boolean => {
     if (i === 0) return true;
@@ -91,24 +111,23 @@ export function GarageView() {
     setTxModal({ type: 'burnout', open: true });
   };
 
-  // Daily briefing
   const today = new Date().toDateString();
   const showBriefing = state.lastBriefingDate !== today;
 
   return (
     <div className="min-h-screen pb-28">
-      {/* Confetti */}
+      <NotificationToast />
       <Confetti active={showConfetti} onComplete={() => setShowConfetti(false)} />
 
-      {/* Fleet Complete overlay */}
       {showComplete && (
         <FleetCompleteOverlay
           monthlyIncome={monthlyIncome}
+          vehicleCount={state.vehicles.length}
           onClose={() => setShowComplete(false)}
+          onExpand={() => { setShowComplete(false); setShowExpand(true); }}
         />
       )}
 
-      {/* Daily Briefing */}
       {showBriefing && state.firstDepositMade && (
         <DailyBriefing
           fleetPct={fleetPct}
@@ -135,7 +154,6 @@ export function GarageView() {
           </button>
         </div>
 
-        {/* XP progress */}
         <div className="mb-4">
           <ProgressBar pct={level.progress * 100} color="#f59e0b" height={3} />
         </div>
@@ -150,7 +168,7 @@ export function GarageView() {
               <span className="text-2xl font-black text-white">
                 <RollingNumber value={completed} />
               </span>
-              <span className="text-sm text-zinc-600 font-bold">/ 3</span>
+              <span className="text-sm text-zinc-600 font-bold">/ {state.vehicles.length}</span>
             </div>
             <span className="text-[10px] text-zinc-600">Vehicles</span>
           </GlassCard>
@@ -189,7 +207,7 @@ export function GarageView() {
         </div>
 
         {/* Build streak + Trading allocated */}
-        <div className="flex gap-2.5 mb-3">
+        <div className="flex gap-2.5 mb-3 flex-wrap">
           {state.streak.count > 0 && (
             <div className="flex items-center gap-1.5 bg-orange-500/10 border border-orange-500/20 rounded-full px-3 py-1.5">
               <span className="text-sm">🔥</span>
@@ -209,7 +227,7 @@ export function GarageView() {
       <div className="px-4">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-bold text-zinc-400 tracking-widest">THE GARAGE</h2>
-          <span className="text-xs text-zinc-600">{completed}/3 Acquired</span>
+          <span className="text-xs text-zinc-600">{completed}/{state.vehicles.length} Acquired</span>
         </div>
 
         {/* Garage environment */}
@@ -222,9 +240,9 @@ export function GarageView() {
             boxShadow: fleetPct > 0 ? `inset 0 0 ${40 + fleetPct * 0.6}px rgba(34,197,94,${0.02 + fleetPct * 0.0008})` : 'none',
           }}
         >
-          {/* Ceiling lights */}
+          {/* Ceiling lights — dynamic count */}
           <div className="flex justify-around pt-3 pb-1">
-            {[0, 1, 2].map(i => {
+            {state.vehicles.map((_, i) => {
               const on = completed >= i + 1 || (i === 0 && fleetPct > 5);
               return (
                 <div
@@ -246,6 +264,7 @@ export function GarageView() {
               const unlocked = isUnlocked(i);
               const pct = vehicleOverallPct(v, cfg);
               const stage: VehicleStage = vehicleStage(v, cfg);
+              const isNewBay = hasExpanded && i >= INITIAL_FLEET_SIZE;
 
               return (
                 <div
@@ -255,9 +274,9 @@ export function GarageView() {
                       ? 'border-white/[0.08] bg-white/[0.02] cursor-pointer active:scale-[0.99]'
                       : 'border-white/[0.03] bg-black/40'
                   }`}
+                  style={isNewBay ? { animation: 'expandBayIn 0.5s ease-out' } : undefined}
                   onClick={() => unlocked && setDetailVehicle(i)}
                 >
-                  {/* Bay label */}
                   <div className="flex items-center justify-between px-4 pt-3">
                     <div className="flex items-center gap-2">
                       <span className="text-[10px] font-bold text-zinc-600 tracking-widest">BAY {String(i + 1).padStart(2, '0')}</span>
@@ -272,18 +291,15 @@ export function GarageView() {
 
                   {unlocked ? (
                     <>
-                      {/* Vehicle visualization */}
                       <div className="flex flex-col items-center py-2">
                         <div className={`transition-all duration-700 ${stage === 'ACQUIRED' ? 'drop-shadow-[0_0_15px_rgba(34,197,94,0.2)]' : ''}`}>
                           <VehicleSVG stage={stage} progress={pct} size={180} />
                         </div>
 
-                        {/* Vehicle name */}
                         <div className="text-center mt-1">
                           <span className="text-sm font-bold text-white">{v.name}</span>
                         </div>
 
-                        {/* Stage label */}
                         <div className="text-center mt-0.5">
                           <span className={`text-[10px] font-bold tracking-widest ${
                             stage === 'ACQUIRED' ? 'text-emerald-400' : 'text-zinc-600'
@@ -292,7 +308,6 @@ export function GarageView() {
                           </span>
                         </div>
 
-                        {/* Progress bar */}
                         <div className="w-full px-4 mt-2">
                           <ProgressBar
                             pct={pct}
@@ -326,16 +341,24 @@ export function GarageView() {
             })}
           </div>
 
-          {/* Floor reflection */}
           {completed > 0 && (
             <div
               className="h-8 transition-all duration-1000"
-              style={{
-                background: 'linear-gradient(180deg, rgba(34,197,94,0.03) 0%, transparent 100%)',
-              }}
+              style={{ background: 'linear-gradient(180deg, rgba(34,197,94,0.03) 0%, transparent 100%)' }}
             />
           )}
         </div>
+
+        {/* Expand Fleet button */}
+        {fleetDone && (
+          <button
+            onClick={() => setShowExpand(true)}
+            className="w-full mb-3 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500/15 to-emerald-500/5 border border-emerald-500/25 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform shadow-[0_0_20px_rgba(34,197,94,0.08)]"
+          >
+            <Plus size={20} className="text-emerald-400" />
+            <span className="text-sm font-black text-emerald-300 tracking-wider">EXPAND FLEET</span>
+          </button>
+        )}
 
         {/* Next milestone */}
         {milestone && (
@@ -353,17 +376,32 @@ export function GarageView() {
           </GlassCard>
         )}
 
-        {/* Fleet progress overview */}
+        {/* Fleet progress overview — circular ring */}
         <GlassCard className="p-4 mb-4">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-zinc-500 font-bold uppercase tracking-wider">Total Fleet Goal</span>
-            <span className="text-xs text-zinc-600">{fleetPct.toFixed(0)}%</span>
+          <div className="flex items-center gap-4">
+            <FleetProgressRing
+              pct={fleetPct}
+              size={110}
+              strokeWidth={7}
+              label={`${fleetPct.toFixed(0)}%`}
+              sublabel="FLEET"
+            />
+            <div className="flex-1 min-w-0">
+              <span className="text-xs text-zinc-500 font-bold uppercase tracking-wider block mb-1">Total Fleet Goal</span>
+              <div className="text-lg font-bold text-white truncate">{formatMoney(balance, settings)}</div>
+              <div className="text-sm text-zinc-600 mb-2">/ {formatMoney(goal, settings)}</div>
+              <div className="flex gap-2">
+                <div className="flex-1 bg-white/[0.03] rounded-lg px-2 py-1.5 text-center">
+                  <span className="text-[9px] text-zinc-600 font-bold uppercase block">Saved</span>
+                  <span className="text-xs font-bold text-emerald-400">{formatMoney(balance, settings, { compact: true })}</span>
+                </div>
+                <div className="flex-1 bg-white/[0.03] rounded-lg px-2 py-1.5 text-center">
+                  <span className="text-[9px] text-zinc-600 font-bold uppercase block">Remaining</span>
+                  <span className="text-xs font-bold text-white">{formatMoney(Math.max(0, goal - balance), settings, { compact: true })}</span>
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="flex items-baseline justify-between mb-2">
-            <span className="text-lg font-bold text-white">{formatMoney(balance, settings)}</span>
-            <span className="text-sm text-zinc-600">/ {formatMoney(goal, settings)}</span>
-          </div>
-          <ProgressBar pct={fleetPct} color="#22c55e" height={6} glow />
         </GlassCard>
 
         {/* Action buttons */}
@@ -432,6 +470,7 @@ export function GarageView() {
       <ReinvestmentEngine open={showReinvest} onClose={() => setShowReinvest(false)} />
       <AchievementsView open={showAchievements} onClose={() => setShowAchievements(false)} />
       <BusinessMetrics open={showBusiness} onClose={() => setShowBusiness(false)} />
+      <ExpandFleetModal open={showExpand} onClose={() => setShowExpand(false)} />
     </div>
   );
 }
@@ -479,9 +518,11 @@ function DailyBriefing({ fleetPct, v1Pct, streak, milestone, settings }: {
   );
 }
 
-function FleetCompleteOverlay({ monthlyIncome, onClose }: {
+function FleetCompleteOverlay({ monthlyIncome, vehicleCount, onClose, onExpand }: {
   monthlyIncome: number;
+  vehicleCount: number;
   onClose: () => void;
+  onExpand: () => void;
 }) {
   const settings = useFleet().state.settings;
   const annual = monthlyIncome * 12;
@@ -494,7 +535,7 @@ function FleetCompleteOverlay({ monthlyIncome, onClose }: {
           FLEET COMPLETE
         </h1>
         <div className="text-5xl mb-4">🚗 🚗 🚗</div>
-        <p className="text-lg font-bold text-white mb-1">3 / 3 VEHICLES</p>
+        <p className="text-lg font-bold text-white mb-1">{vehicleCount} / {vehicleCount} VEHICLES</p>
         <p className="text-sm text-emerald-400 font-semibold mb-6">FLEET OPERATIONAL</p>
 
         <div className="bg-white/5 border border-emerald-500/20 rounded-2xl p-5 mb-6">
@@ -508,12 +549,20 @@ function FleetCompleteOverlay({ monthlyIncome, onClose }: {
           "You didn't just save money.<br />You built an income engine."
         </p>
 
-        <button
-          onClick={onClose}
-          className="px-8 py-3 rounded-xl bg-emerald-500 text-black font-bold active:scale-95 transition-transform"
-        >
-          CONTINUE
-        </button>
+        <div className="space-y-3">
+          <button
+            onClick={onExpand}
+            className="w-full px-8 py-3.5 rounded-xl bg-emerald-500 text-black font-bold active:scale-95 transition-transform flex items-center justify-center gap-2"
+          >
+            <Plus size={18} /> EXPAND FLEET
+          </button>
+          <button
+            onClick={onClose}
+            className="w-full px-8 py-3 rounded-xl bg-white/5 border border-white/10 text-zinc-300 font-bold active:scale-95 transition-transform"
+          >
+            CONTINUE
+          </button>
+        </div>
       </div>
     </div>
   );
