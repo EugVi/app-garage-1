@@ -27,286 +27,245 @@ export function ProgressBar({
 }: ProgressBarProps) {
   const [displayPct, setDisplayPct] = useState(0);
   const [isIncreasing, setIsIncreasing] = useState(true);
-  const [particles, setParticles] = useState<Array<{ id: number; left: number; delay: number }>>([]);
+  const [particles, setParticles] = useState<Array<{ id: number; left: number; top: number }>>([]);
   
   const clamped = Math.min(100, Math.max(0, pct));
 
-  // Animação suave do número
+  // Animação suave do número usando requestAnimationFrame
   useEffect(() => {
-    setIsIncreasing(displayPct < clamped);
-    const timer = setTimeout(() => {
-      setDisplayPct(clamped);
-    }, 100);
-    
-    return () => clearTimeout(timer);
-  }, [clamped, displayPct]);
+    let animationFrame: number;
+    const startValue = displayPct;
+    const endValue = clamped;
+    const startTime = performance.now();
+    const duration = 700; // 700ms
 
-  // Gerar partículas quando a barra está aumentando
+    setIsIncreasing(endValue > startValue);
+
+    const animate = (currentTime: number) => {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      
+      // Easing function
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const currentValue = startValue + (endValue - startValue) * eased;
+      
+      setDisplayPct(Math.round(currentValue));
+      
+      if (progress < 1) {
+        animationFrame = requestAnimationFrame(animate);
+      }
+    };
+
+    animationFrame = requestAnimationFrame(animate);
+    
+    return () => {
+      if (animationFrame) {
+        cancelAnimationFrame(animationFrame);
+      }
+    };
+  }, [clamped]);
+
+  // Gerar partículas (versão mobile-friendly)
   useEffect(() => {
     if (showParticles && isIncreasing && displayPct > 0 && displayPct < 100) {
-      const newParticle = {
-        id: Date.now(),
-        left: displayPct,
-        delay: Math.random() * 0.5,
-      };
+      // Criar 2 partículas por atualização significativa
+      const newParticles = [
+        {
+          id: Date.now(),
+          left: displayPct + Math.random() * 3,
+          top: -Math.random() * 5,
+        },
+        {
+          id: Date.now() + 1,
+          left: displayPct - Math.random() * 3,
+          top: -Math.random() * 5,
+        },
+      ];
       
-      setParticles(prev => [...prev.slice(-5), newParticle]);
+      setParticles(prev => [...prev.slice(-8), ...newParticles]);
       
+      // Limpar partículas antigas
       const cleanupTimer = setTimeout(() => {
-        setParticles(prev => prev.filter(p => p.id !== newParticle.id));
-      }, 2000);
+        setParticles(prev => prev.filter(p => 
+          !newParticles.find(np => np.id === p.id)
+        ));
+      }, 1500);
       
       return () => clearTimeout(cleanupTimer);
     }
   }, [displayPct, isIncreasing, showParticles]);
 
-  // Cores derivadas
-  const getGradient = () => {
-    if (!gradient) return color;
-    
-    // Converte hex para rgba
-    const hexToRgba = (hex: string, alpha: number) => {
-      const r = parseInt(hex.slice(1, 3), 16);
-      const g = parseInt(hex.slice(3, 5), 16);
-      const b = parseInt(hex.slice(5, 7), 16);
-      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-    };
-    
-    return `linear-gradient(90deg, 
-      ${hexToRgba(color, 0.3)} 0%, 
-      ${color} 30%, 
-      ${hexToRgba(color, 1)} 50%, 
-      ${color} 70%, 
-      ${hexToRgba(color, 0.3)} 100%)`;
+  // Converter hex para rgba
+  const hexToRgba = (hex: string, alpha: number) => {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
   };
 
-  // Efeito de listras animadas
-  const stripesStyle = striped ? {
+  // Estilos com transições (funcionam melhor em mobile)
+  const containerStyle: React.CSSProperties = {
+    position: 'relative',
+    width: '100%',
+    height: height,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: '9999px',
+    overflow: 'hidden',
+    boxShadow: 'inset 0 1px 2px rgba(0, 0, 0, 0.3)',
+  };
+
+  const barStyle: React.CSSProperties = {
+    height: '100%',
+    width: `${clamped}%`,
+    background: gradient 
+      ? `linear-gradient(90deg, ${hexToRgba(color, 0.5)}, ${color}, ${hexToRgba(color, 0.8)})`
+      : color,
+    borderRadius: '9999px',
+    transition: 'width 0.7s cubic-bezier(0.4, 0, 0.2, 1)',
+    WebkitTransition: 'width 0.7s cubic-bezier(0.4, 0, 0.2, 1)',
+    boxShadow: glow ? `0 0 10px ${hexToRgba(color, 0.6)}, 0 0 20px ${hexToRgba(color, 0.3)}` : 'none',
+    position: 'relative',
+  };
+
+  // Overlay de brilho (apenas visual, sem animação complexa)
+  const shineStyle: React.CSSProperties = {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    background: 'linear-gradient(180deg, rgba(255,255,255,0.2) 0%, transparent 50%, rgba(255,255,255,0.1) 100%)',
+    borderRadius: '9999px',
+  };
+
+  // Listras com transição simples
+  const stripesStyle: React.CSSProperties = striped ? {
     backgroundImage: `repeating-linear-gradient(
       45deg,
-      rgba(255, 255, 255, 0.15) 0px,
-      rgba(255, 255, 255, 0.15) 10px,
-      transparent 10px,
-      transparent 20px
+      rgba(255, 255, 255, 0.1) 0px,
+      rgba(255, 255, 255, 0.1) 8px,
+      transparent 8px,
+      transparent 16px
     )`,
-    backgroundSize: '200% 100%',
-    animation: 'progressStripes 1s linear infinite',
+    opacity: 0.5,
   } : {};
+
+  // Ponta brilhante
+  const tipStyle: React.CSSProperties = {
+    position: 'absolute',
+    right: -height,
+    top: '50%',
+    transform: 'translateY(-50%)',
+    width: height * 2,
+    height: height * 2,
+    background: '#ffffff',
+    borderRadius: '50%',
+    boxShadow: `0 0 ${height * 2}px ${color}`,
+    opacity: 0.6,
+  };
 
   return (
     <div className={`relative ${className}`}>
       {/* Container principal */}
-      <div
-        className="relative w-full bg-white/5 rounded-full overflow-visible"
-        style={{ height }}
-      >
-        {/* Barra de fundo com brilho sutil */}
-        <div 
-          className="absolute inset-0 rounded-full"
-          style={{
-            background: 'rgba(255, 255, 255, 0.02)',
-            boxShadow: 'inset 0 1px 2px rgba(0, 0, 0, 0.3)',
-          }}
-        />
-        
-        {/* Barra de progresso principal */}
-        <div
-          className="relative h-full rounded-full transition-all duration-700 ease-out"
-          style={{
-            width: `${clamped}%`,
-            background: getGradient(),
-            boxShadow: glow ? `0 0 12px ${color}80, 0 0 24px ${color}40` : 'none',
-            position: 'relative',
-            overflow: 'hidden',
-          }}
-        >
-          {/* Listras animadas */}
+      <div style={containerStyle}>
+        {/* Barra de progresso */}
+        <div style={barStyle}>
+          {/* Listras */}
           {striped && (
             <div 
-              className="absolute inset-0"
-              style={stripesStyle}
-            />
-          )}
-          
-          {/* Brilho que percorre a barra */}
-          {animated && (
-            <div 
-              className="absolute inset-0"
               style={{
-                background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)',
-                animation: 'progressShine 2s ease-in-out infinite',
+                ...shineStyle,
+                ...stripesStyle,
               }}
             />
           )}
           
-          {/* Ponta brilhante */}
-          <div 
-            className="absolute right-0 top-1/2 -translate-y-1/2"
-            style={{
-              width: height * 2,
-              height: height * 2,
-              background: 'white',
-              borderRadius: '50%',
-              boxShadow: `0 0 ${height * 2}px ${color}, 0 0 ${height * 3}px ${color}`,
-              opacity: 0.8,
-              animation: 'progressTipPulse 1.5s ease-in-out infinite',
-            }}
-          />
+          {/* Brilho superior */}
+          {!striped && (
+            <div style={shineStyle} />
+          )}
         </div>
         
-        {/* Partículas flutuantes */}
-        {particles.map(particle => (
-          <div
-            key={particle.id}
-            className="absolute -top-2"
-            style={{
-              left: `${particle.left}%`,
-              width: 4,
-              height: 4,
-              background: color,
-              borderRadius: '50%',
-              boxShadow: `0 0 6px ${color}`,
-              animation: `progressParticle 1s ease-out ${particle.delay}s forwards`,
-              opacity: 0,
-            }}
-          />
-        ))}
+        {/* Ponta brilhante */}
+        {clamped > 0 && clamped < 100 && (
+          <div style={tipStyle} />
+        )}
         
         {/* Marcadores de progresso */}
         {[25, 50, 75].map(marker => (
           <div
             key={marker}
-            className="absolute top-1/2 -translate-y-1/2"
             style={{
+              position: 'absolute',
+              top: '50%',
+              transform: 'translateY(-50%)',
               left: `${marker}%`,
               width: 1,
-              height: height * 0.6,
+              height: height * 0.5,
               background: 'rgba(255, 255, 255, 0.3)',
-              opacity: clamped > marker ? 1 : 0.3,
+              opacity: clamped > marker ? 1 : 0.2,
               transition: 'opacity 0.3s ease',
+              WebkitTransition: 'opacity 0.3s ease',
             }}
           />
         ))}
       </div>
       
-      {/* Porcentagem animada */}
-      {showPercentage && (
-        <div 
-          className="absolute -top-6 text-xs font-bold transition-all duration-300"
+      {/* Partículas (versão simplificada para mobile) */}
+      {particles.map(particle => (
+        <div
+          key={particle.id}
           style={{
-            left: `${clamped}%`,
-            transform: 'translateX(-50%)',
-            color: color,
-            opacity: clamped > 0 ? 1 : 0,
+            position: 'absolute',
+            left: `${particle.left}%`,
+            top: particle.top,
+            width: 3,
+            height: 3,
+            background: color,
+            borderRadius: '50%',
+            boxShadow: `0 0 4px ${color}`,
+            opacity: 0,
+            animation: `particleFloat 1s ease-out forwards`,
+            WebkitAnimation: `particleFloat 1s ease-out forwards`,
           }}
-        >
-          <span style={{
-            display: 'inline-block',
-            animation: isIncreasing ? 'progressNumberUp 0.5s ease-out' : 'progressNumberDown 0.5s ease-out',
-          }}>
-            {displayPct}%
-          </span>
-        </div>
-      )}
+        />
+      ))}
       
-      {/* Tooltip na ponta */}
-      {showPercentage && clamped > 0 && clamped < 100 && (
-        <div 
-          className="absolute -top-10 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-xs"
+      {/* Porcentagem */}
+      {showPercentage && displayPct > 0 && (
+        <div
           style={{
+            position: 'absolute',
+            top: -height * 3,
             left: `${clamped}%`,
             transform: 'translateX(-50%)',
-            animation: 'progressTooltipFade 0.3s ease-out',
+            transition: 'all 0.5s ease-out',
+            WebkitTransition: 'all 0.5s ease-out',
           }}
         >
-          <span style={{ color }}>
+          <span
+            style={{
+              fontSize: '11px',
+              fontWeight: 'bold',
+              color: color,
+              textShadow: glow ? `0 0 8px ${color}` : 'none',
+            }}
+          >
             {displayPct}%
           </span>
-          <div 
-            className="absolute -bottom-1 left-1/2 -translate-x-1/2"
-            style={{
-              width: 0,
-              height: 0,
-              borderLeft: '4px solid transparent',
-              borderRight: '4px solid transparent',
-              borderTop: `4px solid ${color}`,
-            }}
-          />
         </div>
       )}
       
       <style>
         {`
-          @keyframes progressShine {
-            0% {
-              transform: translateX(-100%);
-            }
-            100% {
-              transform: translateX(200%);
-            }
-          }
-          
-          @keyframes progressStripes {
-            0% {
-              background-position: 0 0;
-            }
-            100% {
-              background-position: 40px 0;
-            }
-          }
-          
-          @keyframes progressParticle {
+          @keyframes particleFloat {
             0% {
               transform: translateY(0) scale(1);
               opacity: 1;
             }
             100% {
-              transform: translateY(-20px) scale(0);
+              transform: translateY(-15px) scale(0);
               opacity: 0;
-            }
-          }
-          
-          @keyframes progressTipPulse {
-            0%, 100% {
-              transform: translateY(-50%) scale(1);
-              opacity: 0.8;
-            }
-            50% {
-              transform: translateY(-50%) scale(1.5);
-              opacity: 1;
-            }
-          }
-          
-          @keyframes progressNumberUp {
-            0% {
-              transform: translateY(10px);
-              opacity: 0;
-            }
-            100% {
-              transform: translateY(0);
-              opacity: 1;
-            }
-          }
-          
-          @keyframes progressNumberDown {
-            0% {
-              transform: translateY(-10px);
-              opacity: 0;
-            }
-            100% {
-              transform: translateY(0);
-              opacity: 1;
-            }
-          }
-          
-          @keyframes progressTooltipFade {
-            0% {
-              opacity: 0;
-              transform: translateX(-50%) scale(0.8);
-            }
-            100% {
-              opacity: 1;
-              transform: translateX(-50%) scale(1);
             }
           }
         `}
