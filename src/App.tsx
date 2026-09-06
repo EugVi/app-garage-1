@@ -1,4 +1,3 @@
-```tsx
 import {
   useCallback,
   useEffect,
@@ -253,4 +252,3 @@ export default function App() {
     </FleetProvider>
   );
 }
-```
