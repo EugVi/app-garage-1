@@ -25,7 +25,7 @@ export function Modal({ open, onClose, title, children, accent = 'default' }: Mo
   const accentGlow = accent === 'green' ? 'shadow-[0_-8px_40px_rgba(34,197,94,0.15)]' : accent === 'orange' ? 'shadow-[0_-8px_40px_rgba(249,115,22,0.15)]' : '';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center" role="dialog" aria-modal="true">
+    <div className="fixed inset-0 z-[100] flex items-end justify-center sm:items-center" role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]" onClick={onClose} />
       <div
         className={`relative w-full max-w-[480px] bg-zinc-900/95 backdrop-blur-xl border ${accentBorder} ${accentGlow} rounded-t-3xl sm:rounded-3xl p-5 animate-[slideUp_0.3s_cubic-bezier(0.16,1,0.3,1)] max-h-[90dvh] overflow-y-auto overscroll-contain`}

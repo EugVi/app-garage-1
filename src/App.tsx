@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { Car, Scroll, Settings } from 'lucide-react';
 import { FleetProvider } from './store';
 import { GarageView } from './views/GarageView';
@@ -11,20 +11,21 @@ type Tab = 'garage' | 'history' | 'settings';
 function AppContent() {
   const [tab, setTab] = useState<Tab>('garage');
   const [showSplash, setShowSplash] = useState(true);
+  const handleSplashComplete = useCallback(() => setShowSplash(false), []);
 
   if (showSplash) {
-    return <SplashScreen onComplete={() => setShowSplash(false)} />;
+    return <SplashScreen onComplete={handleSplashComplete} />;
   }
 
   return (
     <div className="min-h-[100dvh] bg-zinc-950 text-white max-w-[480px] mx-auto relative overflow-x-hidden">
       {/* Ambient background glow */}
-      <div className="fixed inset-0 pointer-events-none max-w-[480px] mx-auto">
+      <div className="fixed inset-0 pointer-events-none max-w-[480px] mx-auto -z-10">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-96 h-96 bg-emerald-500/[0.03] rounded-full blur-3xl" />
         <div className="absolute bottom-0 left-0 w-64 h-64 bg-amber-500/[0.02] rounded-full blur-3xl" />
       </div>
 
-      <div className="relative z-10" style={{ animation: 'contentSlideUp 0.4s ease-out' }}>
+      <div className="relative" style={{ animation: 'contentSlideUp 0.4s ease-out' }}>
         {tab === 'garage' && <GarageView />}
         {tab === 'history' && <HistoryView />}
         {tab === 'settings' && <SettingsView />}
@@ -32,7 +33,7 @@ function AppContent() {
 
       {/* Bottom navigation */}
       <nav
-        className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] z-40"
+        className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] z-30"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
         <div className="bg-zinc-900/80 backdrop-blur-xl border-t border-white/[0.06] px-4 py-2">

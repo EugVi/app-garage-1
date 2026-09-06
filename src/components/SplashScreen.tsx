@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { Car } from 'lucide-react';
 
 interface SplashScreenProps {
@@ -7,29 +7,22 @@ interface SplashScreenProps {
 
 export function SplashScreen({ onComplete }: SplashScreenProps) {
   const [fading, setFading] = useState(false);
-  const [visible, setVisible] = useState(true);
-
-  const stableOnComplete = useCallback(() => {
-    setVisible(false);
-    onComplete();
-  }, [onComplete]);
 
   useEffect(() => {
     const prefersReduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     if (prefersReduced) {
-      stableOnComplete();
+      onComplete();
       return;
     }
 
     const fadeTimer = setTimeout(() => setFading(true), 1900);
-    const doneTimer = setTimeout(stableOnComplete, 2400);
+    const doneTimer = setTimeout(onComplete, 2400);
     return () => {
       clearTimeout(fadeTimer);
       clearTimeout(doneTimer);
     };
-  }, [stableOnComplete]);
-
-  if (!visible) return null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div
