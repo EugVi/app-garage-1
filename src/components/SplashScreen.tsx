@@ -19,9 +19,11 @@ export function SplashScreen({
   const [fading, setFading] = useState(false);
   const [animationStep, setAnimationStep] = useState(0);
   const [showParticles, setShowParticles] = useState(false);
+  const [progress, setProgress] = useState(0);
   
   const startTimeRef = useRef<number | null>(null);
   const completedRef = useRef(false);
+  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const MIN_SPLASH_TIME = 6000;
   const FADE_TIME = 800;
@@ -49,12 +51,40 @@ export function SplashScreen({
     const timers = [
       setTimeout(() => setAnimationStep(2), 400),  // Logo com zoom
       setTimeout(() => setAnimationStep(3), 1100), // Texto da marca
-      setTimeout(() => setAnimationStep(4), 1800), // Barra de loading
+      setTimeout(() => setAnimationStep(4), 1800), // Loading indicator
       setTimeout(() => setAnimationStep(5), 2500), // Efeito de brilho
     ];
 
     return () => timers.forEach(timer => clearTimeout(timer));
   }, [started]);
+
+  // Sistema de progresso
+  useEffect(() => {
+    if (animationStep >= 4 && !progressIntervalRef.current) {
+      let currentProgress = 0;
+      const totalDuration = 3500;
+      const intervalTime = 50;
+      const incrementPerInterval = (100 * intervalTime) / totalDuration;
+
+      progressIntervalRef.current = setInterval(() => {
+        currentProgress += incrementPerInterval;
+        if (currentProgress >= 100) {
+          currentProgress = 100;
+          if (progressIntervalRef.current) {
+            clearInterval(progressIntervalRef.current);
+          }
+        }
+        setProgress(Math.min(Math.round(currentProgress), 100));
+      }, intervalTime);
+    }
+
+    return () => {
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
+    };
+  }, [animationStep]);
 
   // Finalização
   useEffect(() => {
@@ -104,7 +134,7 @@ export function SplashScreen({
     };
   };
 
-  // Estilo dos anéis com pulso
+  // Estilo dos anéis
   const getRingStyles = (index: number) => {
     const isActive = animationStep >= 1;
     const delays = [0, 0.3, 0.6];
@@ -116,22 +146,6 @@ export function SplashScreen({
       transform: isActive ? `scale(${scales[index]})` : 'scale(0.5)',
       transition: `all ${durations[index]}s cubic-bezier(0.4, 0, 0.2, 1) ${delays[index]}s`,
       WebkitTransition: `all ${durations[index]}s cubic-bezier(0.4, 0, 0.2, 1) ${delays[index]}s`,
-    };
-  };
-
-  // Estilo da barra de loading com gradiente
-  const getBarStyles = () => {
-    const isActive = animationStep >= 4;
-    
-    return {
-      width: isActive ? '100%' : '0%',
-      background: 'linear-gradient(90deg, #22c55e, #86efac, #22c55e)',
-      backgroundSize: '200% auto',
-      animation: isActive ? 'shimmerBar 2s linear infinite' : 'none',
-      WebkitAnimation: isActive ? 'shimmerBar 2s linear infinite' : 'none',
-      transition: 'width 3.5s cubic-bezier(0.4, 0, 0.2, 1)',
-      WebkitTransition: 'width 3.5s cubic-bezier(0.4, 0, 0.2, 1)',
-      boxShadow: '0 0 20px rgba(34, 197, 94, 0.5)',
     };
   };
 
@@ -162,7 +176,6 @@ export function SplashScreen({
           BACKGROUND EFFECTS
           ========================= */}
       
-      {/* Gradiente animado de fundo */}
       <div 
         className="absolute inset-0"
         style={{
@@ -226,7 +239,6 @@ export function SplashScreen({
           blur: 20,
         })}
       >
-        {/* Glow atrás do logo */}
         <div 
           className="absolute inset-0 bg-emerald-500/20 rounded-3xl blur-2xl"
           style={{
@@ -296,11 +308,11 @@ export function SplashScreen({
       </div>
 
       {/* =========================
-          LOADING BAR COM EFEITO ESPECIAL
+          LOADING INDICATOR (CIRCULAR)
           ========================= */}
       
       <div
-        className="absolute bottom-20 w-40"
+        className="absolute bottom-24 flex flex-col items-center gap-4"
         style={getStyles(4, {
           scale: 0.5,
           translateY: 30,
@@ -308,27 +320,95 @@ export function SplashScreen({
           blur: 8,
         })}
       >
-        {/* Texto de loading */}
-        <div 
-          className="text-center mb-2"
-          style={{
-            opacity: animationStep >= 4 ? 1 : 0,
-            transition: 'opacity 0.5s ease-out 0.3s',
-            WebkitTransition: 'opacity 0.5s ease-out 0.3s',
-          }}
-        >
+        <div className="relative w-12 h-12">
+          <div className="absolute inset-0 rounded-full border-2 border-white/10" />
+          
+          <svg className="absolute inset-0 -rotate-90" viewBox="0 0 48 48">
+            <circle
+              cx="24"
+              cy="24"
+              r="22"
+              fill="none"
+              stroke="url(#gradient)"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeDasharray={`${(progress / 100) * 138.23} 138.23`}
+              style={{
+                transition: 'stroke-dasharray 0.1s linear',
+                WebkitTransition: 'stroke-dasharray 0.1s linear',
+              }}
+            />
+            <defs>
+              <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#22c55e" />
+                <stop offset="100%" stopColor="#86efac" />
+              </linearGradient>
+            </defs>
+          </svg>
+          
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-[10px] font-bold text-emerald-400">
+              {progress}%
+            </span>
+          </div>
+        </div>
+
+        <div className="text-center">
           <span className="text-[9px] text-emerald-500/60 font-semibold tracking-[0.3em]">
             INICIALIZANDO
           </span>
         </div>
-        
-        {/* Barra de progresso */}
-        <div className="h-1 bg-white/5 rounded-full overflow-hidden">
-          <div
-            className="h-full rounded-full"
-            style={getBarStyles()}
-          />
+      </div>
+
+      {/* =========================
+          ASSINATURA NERD & MONEY
+          ========================= */}
+      
+      <div
+        className="absolute bottom-6 text-center px-6"
+        style={{
+          opacity: animationStep >= 4 ? 1 : 0,
+          transform: animationStep >= 4 ? 'translateY(0)' : 'translateY(20px)',
+          transition: 'all 1s ease-out 0.8s',
+          WebkitTransition: 'all 1s ease-out 0.8s',
+        }}
+      >
+        <div className="flex items-center gap-3 justify-center">
+          <span className="w-8 h-px bg-gradient-to-r from-transparent to-emerald-500/50" />
+          
+          <div className="flex items-center gap-1.5">
+            {/* Ícone de código/terminal */}
+            <span className="text-emerald-500/70 text-[10px] font-mono">
+              {'</>'}
+            </span>
+            <span className="text-[8px] text-zinc-600 font-medium tracking-[0.2em] uppercase">
+              developed by
+            </span>
+            {/* Ícone de dinheiro */}
+            <span className="text-emerald-500/70 text-[10px]">
+              $
+            </span>
+          </div>
+          
+          <span className="w-8 h-px bg-gradient-to-l from-transparent to-emerald-500/50" />
         </div>
+        
+        <p 
+          className="text-[11px] mt-2 font-bold tracking-[0.15em] text-transparent bg-clip-text"
+          style={{
+            backgroundImage: 'linear-gradient(90deg, #22c55e, #86efac, #22c55e)',
+            backgroundSize: '200% auto',
+            animation: started ? 'shimmerText 3s linear infinite' : 'none',
+            WebkitAnimation: started ? 'shimmerText 3s linear infinite' : 'none',
+          }}
+        >
+          EUGÉNIO'S CREATIONS
+        </p>
+        
+        {/* Tagline nerd/money */}
+        <p className="text-[7px] text-zinc-700 font-mono mt-1 tracking-wider">
+          {'// code smart. build wealth.'}
+        </p>
       </div>
 
       {/* =========================
@@ -338,15 +418,6 @@ export function SplashScreen({
       <style>
         {`
           @keyframes shimmerText {
-            0% {
-              background-position: 0% center;
-            }
-            100% {
-              background-position: -200% center;
-            }
-          }
-
-          @keyframes shimmerBar {
             0% {
               background-position: 0% center;
             }
