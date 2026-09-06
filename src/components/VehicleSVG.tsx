@@ -16,25 +16,20 @@ export function VehicleSVG({ stage, progress, size = 200 }: VehicleSVGProps) {
   const [scanLineY, setScanLineY] = useState(30);
   const [engineGlow, setEngineGlow] = useState(0.05);
   const [wheelRotation, setWheelRotation] = useState(0);
+  const [exhaustParticles, setExhaustParticles] = useState<Array<{ id: number; x: number; y: number; opacity: number }>>([]);
   const [headlightIntensity, setHeadlightIntensity] = useState(0.7);
 
-  // Animação do scan line (blueprint)
+  // Scan line animation
   useEffect(() => {
     if (!isBlueprint) return;
-    
     let raf: number;
     let direction = 1;
     
     const animate = () => {
       setScanLineY(prev => {
         let newY = prev + direction * 0.5;
-        if (newY >= 110) {
-          newY = 110;
-          direction = -1;
-        } else if (newY <= 30) {
-          newY = 30;
-          direction = 1;
-        }
+        if (newY >= 110) { newY = 110; direction = -1; }
+        else if (newY <= 30) { newY = 30; direction = 1; }
         return newY;
       });
       raf = requestAnimationFrame(animate);
@@ -44,23 +39,17 @@ export function VehicleSVG({ stage, progress, size = 200 }: VehicleSVGProps) {
     return () => cancelAnimationFrame(raf);
   }, [isBlueprint]);
 
-  // Animação do glow do motor (acquired)
+  // Engine glow animation
   useEffect(() => {
     if (!isAcquired) return;
-    
     let raf: number;
     let increasing = true;
     
     const animate = () => {
       setEngineGlow(prev => {
         let newGlow = prev + (increasing ? 0.001 : -0.001);
-        if (newGlow >= 0.12) {
-          newGlow = 0.12;
-          increasing = false;
-        } else if (newGlow <= 0.03) {
-          newGlow = 0.03;
-          increasing = true;
-        }
+        if (newGlow >= 0.15) { newGlow = 0.15; increasing = false; }
+        else if (newGlow <= 0.03) { newGlow = 0.03; increasing = true; }
         return newGlow;
       });
       raf = requestAnimationFrame(animate);
@@ -70,17 +59,16 @@ export function VehicleSVG({ stage, progress, size = 200 }: VehicleSVGProps) {
     return () => cancelAnimationFrame(raf);
   }, [isAcquired]);
 
-  // Animação da rotação das rodas (acquired)
+  // Wheel rotation
   useEffect(() => {
     if (!isAcquired) return;
-    
     let raf: number;
     let lastTime = performance.now();
     
     const rotate = (now: number) => {
       const deltaTime = (now - lastTime) / 1000;
       lastTime = now;
-      setWheelRotation(prev => (prev + deltaTime * 30) % 360);
+      setWheelRotation(prev => (prev + deltaTime * 45) % 360);
       raf = requestAnimationFrame(rotate);
     };
     
@@ -88,23 +76,39 @@ export function VehicleSVG({ stage, progress, size = 200 }: VehicleSVGProps) {
     return () => cancelAnimationFrame(raf);
   }, [isAcquired]);
 
-  // Animação da intensidade do farol
+  // Exhaust particles
   useEffect(() => {
     if (!isAcquired) return;
     
+    const interval = setInterval(() => {
+      const newParticle = {
+        id: Date.now(),
+        x: 30 + Math.random() * 10,
+        y: 85 + Math.random() * 10,
+        opacity: 0.6,
+      };
+      
+      setExhaustParticles(prev => [...prev.slice(-5), newParticle]);
+      
+      setTimeout(() => {
+        setExhaustParticles(prev => prev.filter(p => p.id !== newParticle.id));
+      }, 1500);
+    }, 300);
+    
+    return () => clearInterval(interval);
+  }, [isAcquired]);
+
+  // Headlight intensity
+  useEffect(() => {
+    if (!isAcquired) return;
     let raf: number;
     let increasing = true;
     
     const animate = () => {
       setHeadlightIntensity(prev => {
         let newIntensity = prev + (increasing ? 0.005 : -0.005);
-        if (newIntensity >= 0.9) {
-          newIntensity = 0.9;
-          increasing = false;
-        } else if (newIntensity <= 0.5) {
-          newIntensity = 0.5;
-          increasing = true;
-        }
+        if (newIntensity >= 0.95) { newIntensity = 0.95; increasing = false; }
+        else if (newIntensity <= 0.5) { newIntensity = 0.5; increasing = true; }
         return newIntensity;
       });
       raf = requestAnimationFrame(animate);
@@ -114,21 +118,11 @@ export function VehicleSVG({ stage, progress, size = 200 }: VehicleSVGProps) {
     return () => cancelAnimationFrame(raf);
   }, [isAcquired]);
 
-  // Opacity levels based on progress
   const blueprintOpacity = isBlueprint ? 0.3 + (progress / 30) * 0.2 : 0;
-  const bodyOpacity = isAssembly ? 0.4 + ((progress - 30) / 40) * 0.3 : isFinal || isAcquired ? 0.8 : 0;
+  const bodyOpacity = isAssembly ? 0.4 + ((progress - 30) / 40) * 0.3 : isFinal || isAcquired ? 0.9 : 0;
   const detailOpacity = isFinal ? 0.6 + ((progress - 70) / 30) * 0.4 : isAcquired ? 1 : 0;
   const headlightOn = isAcquired;
 
-  // Converter hex para rgba
-  const hexToRgba = (hex: string, alpha: number) => {
-    const r = parseInt(hex.slice(1, 3), 16);
-    const g = parseInt(hex.slice(3, 5), 16);
-    const b = parseInt(hex.slice(5, 7), 16);
-    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-  };
-
-  // Calcular posição dos raios das rodas
   const getSpokePosition = (cx: number, cy: number, angle: number, length: number) => {
     const radian = ((angle + wheelRotation) * Math.PI) / 180;
     return {
@@ -147,54 +141,75 @@ export function VehicleSVG({ stage, progress, size = 200 }: VehicleSVGProps) {
       className="select-none"
       style={{
         willChange: 'transform',
-        transform: 'translateZ(0)', // GPU acceleration
+        transform: 'translateZ(0)',
       }}
     >
       <defs>
         <linearGradient id="bodyGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#2a2a2a" />
-          <stop offset="50%" stopColor="#1a1a1a" />
+          <stop offset="0%" stopColor="#3a3a3a" />
+          <stop offset="30%" stopColor="#2a2a2a" />
+          <stop offset="70%" stopColor="#1a1a1a" />
           <stop offset="100%" stopColor="#0a0a0a" />
         </linearGradient>
-        <linearGradient id="bodyHighlight" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#3a3a3a" stopOpacity="0.6" />
-          <stop offset="100%" stopColor="#1a1a1a" stopOpacity="0" />
-        </linearGradient>
-        <linearGradient id="neonGreen" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#22c55e" />
-          <stop offset="100%" stopColor="#16a34a" />
-        </linearGradient>
-        <linearGradient id="amberGlow" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#f59e0b" />
-          <stop offset="100%" stopColor="#f97316" />
+        <linearGradient id="racingStripe" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="#22c55e" stopOpacity="0" />
+          <stop offset="15%" stopColor="#22c55e" stopOpacity="0.8" />
+          <stop offset="50%" stopColor="#22c55e" stopOpacity="0.3" />
+          <stop offset="85%" stopColor="#22c55e" stopOpacity="0.8" />
+          <stop offset="100%" stopColor="#22c55e" stopOpacity="0" />
         </linearGradient>
         <radialGradient id="headlightGlow" cx="0.5" cy="0.5" r="0.5">
           <stop offset="0%" stopColor="#fef3c7" stopOpacity="1" />
-          <stop offset="40%" stopColor="#f59e0b" stopOpacity="0.6" />
+          <stop offset="30%" stopColor="#f59e0b" stopOpacity="0.8" />
           <stop offset="100%" stopColor="#f59e0b" stopOpacity="0" />
         </radialGradient>
-        <radialGradient id="floorReflection" cx="0.5" cy="0" r="0.5">
-          <stop offset="0%" stopColor="#22c55e" stopOpacity={isAcquired ? 0.15 : 0.05} />
+        <radialGradient id="underglow" cx="0.5" cy="0.5" r="0.5">
+          <stop offset="0%" stopColor="#22c55e" stopOpacity="0.6" />
           <stop offset="100%" stopColor="#22c55e" stopOpacity="0" />
         </radialGradient>
-        {isBlueprint && (
-          <pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse">
-            <path d="M 10 0 L 0 0 0 10" fill="none" stroke="#22c55e" strokeWidth="0.2" opacity="0.3" />
-          </pattern>
-        )}
       </defs>
 
-      {/* Floor reflection / spotlight */}
-      <ellipse cx="100" cy="115" rx="80" ry="8" fill="url(#floorReflection)" />
+      {/* Underglow effect */}
+      {isAcquired && (
+        <ellipse 
+          cx="100" 
+          cy="105" 
+          rx="75" 
+          ry="12" 
+          fill="url(#underglow)"
+          opacity={engineGlow}
+          style={{
+            transition: 'opacity 0.1s linear',
+            WebkitTransition: 'opacity 0.1s linear',
+          }}
+        />
+      )}
 
-      {/* Blueprint wireframe layer */}
+      {/* Exhaust particles */}
+      {exhaustParticles.map(particle => (
+        <circle
+          key={particle.id}
+          cx={particle.x}
+          cy={particle.y}
+          r="2"
+          fill="#22c55e"
+          opacity={particle.opacity}
+          style={{
+            transition: 'all 1.5s ease-out',
+            WebkitTransition: 'all 1.5s ease-out',
+            transform: `translate(${-particle.id % 5}px, ${-particle.id % 3}px)`,
+          }}
+        />
+      ))}
+
+      {/* Blueprint layer */}
       {isBlueprint && (
         <g opacity={blueprintOpacity}>
-          <rect x="20" y="20" width="160" height="84" fill="url(#grid)" opacity="0.3" />
+          <rect x="20" y="20" width="160" height="84" fill="none" stroke="#22c55e" strokeWidth="0.5" opacity="0.3" />
           
-          {/* Chassis outline - sem animação complexa */}
+          {/* Muscle car blueprint */}
           <path
-            d="M 30 90 L 30 75 Q 30 60 45 55 L 70 48 Q 80 35 100 35 L 130 35 Q 150 35 160 48 L 175 55 Q 180 60 180 75 L 180 90"
+            d="M 25 95 L 25 80 Q 25 70 35 65 L 55 55 Q 65 35 100 35 L 135 35 Q 165 35 175 55 L 185 65 Q 190 70 190 80 L 190 95"
             fill="none"
             stroke="#22c55e"
             strokeWidth="1"
@@ -202,11 +217,9 @@ export function VehicleSVG({ stage, progress, size = 200 }: VehicleSVGProps) {
             opacity="0.6"
           />
           
-          {/* Wheel positions */}
-          <circle cx="55" cy="92" r="14" fill="none" stroke="#22c55e" strokeWidth="1" strokeDasharray="2 1" opacity="0.5" />
-          <circle cx="155" cy="92" r="14" fill="none" stroke="#22c55e" strokeWidth="1" strokeDasharray="2 1" opacity="0.5" />
+          <circle cx="60" cy="95" r="16" fill="none" stroke="#22c55e" strokeWidth="1" strokeDasharray="2 1" opacity="0.5" />
+          <circle cx="160" cy="95" r="16" fill="none" stroke="#22c55e" strokeWidth="1" strokeDasharray="2 1" opacity="0.5" />
           
-          {/* Scan line - usando JavaScript em vez de animate */}
           <line 
             x1="20" 
             y1={scanLineY} 
@@ -221,72 +234,94 @@ export function VehicleSVG({ stage, progress, size = 200 }: VehicleSVGProps) {
             }}
           />
           
-          {/* Technical labels */}
-          <text x="25" y="28" fill="#22c55e" fontSize="3" opacity="0.4" fontFamily="monospace">CHASSIS-01</text>
+          <text x="25" y="28" fill="#22c55e" fontSize="3" opacity="0.4" fontFamily="monospace">MUSCLE-01</text>
           <text x="140" y="28" fill="#22c55e" fontSize="3" opacity="0.4" fontFamily="monospace">SCAN...</text>
         </g>
       )}
 
-      {/* Vehicle body — assembly and beyond */}
+      {/* Main car body */}
       {!isBlueprint && (
         <g opacity={bodyOpacity}>
-          {/* Main body */}
+          {/* Shadow */}
+          <ellipse cx="100" cy="112" rx="75" ry="6" fill="#000" opacity="0.5" />
+          
+          {/* Main body - aggressive muscle car shape */}
           <path
-            d="M 30 90 L 30 76 Q 30 62 46 57 L 68 50 Q 78 38 100 38 L 128 38 Q 150 38 158 50 L 174 57 Q 180 62 180 76 L 180 90 L 30 90 Z"
+            d="M 25 95 L 25 78 Q 25 68 35 63 L 55 53 Q 65 35 100 35 L 135 35 Q 165 35 175 53 L 188 63 Q 192 68 192 78 L 192 95 Z"
             fill="url(#bodyGrad)"
-            stroke={isAcquired ? '#22c55e' : '#333'}
-            strokeWidth="0.8"
-          />
-          {/* Body highlight */}
-          <path
-            d="M 40 62 Q 60 50 100 48 Q 140 50 160 62"
-            fill="none"
-            stroke="url(#bodyHighlight)"
-            strokeWidth="3"
-          />
-          {/* Roof line */}
-          <path
-            d="M 70 46 Q 80 40 100 40 L 128 40 Q 148 40 156 48"
-            fill="none"
             stroke={isAcquired ? '#22c55e' : '#444'}
             strokeWidth="1"
-            opacity="0.8"
           />
-
-          {/* Windows */}
-          <g opacity={detailOpacity * 0.7}>
-            <path d="M 74 50 Q 82 44 98 44 L 112 44 L 112 54 L 72 54 Z" fill="#1e3a5f" opacity="0.6" stroke="#3b5998" strokeWidth="0.5" />
-            <path d="M 114 44 L 126 44 Q 142 44 150 50 L 150 54 L 114 54 Z" fill="#1e3a5f" opacity="0.6" stroke="#3b5998" strokeWidth="0.5" />
+          
+          {/* Racing stripe */}
+          <path
+            d="M 30 50 L 185 50"
+            stroke="url(#racingStripe)"
+            strokeWidth="4"
+            opacity={isAcquired ? 1 : 0.3}
+          />
+          
+          {/* Hood scoop */}
+          <path
+            d="M 75 42 Q 100 38 125 42 L 125 46 Q 100 43 75 46 Z"
+            fill="#1a1a1a"
+            stroke="#333"
+            strokeWidth="0.5"
+          />
+          
+          {/* Aggressive front splitter */}
+          <path
+            d="M 185 95 L 192 95 L 192 90 L 188 90 Z"
+            fill="#1a1a1a"
+            stroke={isAcquired ? '#22c55e' : '#444'}
+            strokeWidth="0.5"
+          />
+          
+          {/* Rear spoiler */}
+          <path
+            d="M 25 70 L 30 70 L 30 65 L 28 63 L 28 65 Z"
+            fill="#1a1a1a"
+            stroke="#333"
+            strokeWidth="0.5"
+          />
+          
+          {/* Windows - aggressive shape */}
+          <g opacity={detailOpacity * 0.8}>
+            <path d="M 68 55 Q 80 48 95 48 L 110 48 L 110 58 L 66 58 Z" fill="#1e3a5f" opacity="0.7" stroke="#3b5998" strokeWidth="0.5" />
+            <path d="M 112 48 L 125 48 Q 145 48 155 55 L 155 58 L 112 58 Z" fill="#1e3a5f" opacity="0.7" stroke="#3b5998" strokeWidth="0.5" />
           </g>
-
+          
+          {/* Side exhaust */}
+          <rect x="185" y="80" width="8" height="3" rx="1" fill="#333" stroke={isAcquired ? '#22c55e' : '#444'} strokeWidth="0.5" />
+          
           {/* Door line */}
-          <line x1="100" y1="56" x2="100" y2="88" stroke="#222" strokeWidth="0.5" opacity={detailOpacity} />
-
-          {/* Side panel details */}
-          <line x1="50" y1="70" x2="170" y2="70" stroke="#333" strokeWidth="0.3" opacity={detailOpacity * 0.5} />
+          <line x1="100" y1="60" x2="100" y2="93" stroke="#222" strokeWidth="0.8" opacity={detailOpacity} />
+          
+          {/* Door handle */}
+          <rect x="103" y="75" width="3" height="1" rx="0.5" fill="#444" opacity={detailOpacity * 0.5} />
         </g>
       )}
 
-      {/* Wheels — final assembly and beyond */}
+      {/* Wheels - wide and aggressive */}
       {!isBlueprint && !isAssembly && (
         <g opacity={detailOpacity}>
-          {/* Rear wheel */}
-          <circle cx="55" cy="92" r="13" fill="#0a0a0a" stroke="#222" strokeWidth="1" />
-          <circle cx="55" cy="92" r="9" fill="#1a1a1a" stroke="#333" strokeWidth="0.5" />
-          <circle cx="55" cy="92" r="4" fill="#222" />
+          {/* Rear wheel - wide tire */}
+          <circle cx="55" cy="95" r="16" fill="#0a0a0a" stroke="#333" strokeWidth="1.5" />
+          <circle cx="55" cy="95" r="11" fill="#1a1a1a" stroke="#444" strokeWidth="0.5" />
           
-          {/* Spokes com rotação via JavaScript */}
-          {[0, 72, 144, 216, 288].map(angle => {
-            const end = getSpokePosition(55, 92, angle, 8);
+          {/* Sport rims - 6 spokes */}
+          {[0, 60, 120, 180, 240, 300].map(angle => {
+            const end = getSpokePosition(55, 95, angle, 10);
             return (
               <line
                 key={`rw-${angle}`}
                 x1="55" 
-                y1="92"
+                y1="95"
                 x2={end.x}
                 y2={end.y}
-                stroke="#444"
-                strokeWidth="1"
+                stroke="#22c55e"
+                strokeWidth="1.5"
+                opacity="0.7"
                 style={{
                   transition: 'all 0.05s linear',
                   WebkitTransition: 'all 0.05s linear',
@@ -294,23 +329,24 @@ export function VehicleSVG({ stage, progress, size = 200 }: VehicleSVGProps) {
               />
             );
           })}
-
-          {/* Front wheel */}
-          <circle cx="155" cy="92" r="13" fill="#0a0a0a" stroke="#222" strokeWidth="1" />
-          <circle cx="155" cy="92" r="9" fill="#1a1a1a" stroke="#333" strokeWidth="0.5" />
-          <circle cx="155" cy="92" r="4" fill="#222" />
+          <circle cx="55" cy="95" r="3" fill="#22c55e" opacity="0.8" />
           
-          {[0, 72, 144, 216, 288].map(angle => {
-            const end = getSpokePosition(155, 92, angle, 8);
+          {/* Front wheel - wide tire */}
+          <circle cx="155" cy="95" r="16" fill="#0a0a0a" stroke="#333" strokeWidth="1.5" />
+          <circle cx="155" cy="95" r="11" fill="#1a1a1a" stroke="#444" strokeWidth="0.5" />
+          
+          {[0, 60, 120, 180, 240, 300].map(angle => {
+            const end = getSpokePosition(155, 95, angle, 10);
             return (
               <line
                 key={`fw-${angle}`}
                 x1="155" 
-                y1="92"
+                y1="95"
                 x2={end.x}
                 y2={end.y}
-                stroke="#444"
-                strokeWidth="1"
+                stroke="#22c55e"
+                strokeWidth="1.5"
+                opacity="0.7"
                 style={{
                   transition: 'all 0.05s linear',
                   WebkitTransition: 'all 0.05s linear',
@@ -318,23 +354,23 @@ export function VehicleSVG({ stage, progress, size = 200 }: VehicleSVGProps) {
               />
             );
           })}
+          <circle cx="155" cy="95" r="3" fill="#22c55e" opacity="0.8" />
         </g>
       )}
 
-      {/* Headlights — final assembly and acquired */}
+      {/* Headlights and details */}
       {!isBlueprint && !isAssembly && (
         <g opacity={detailOpacity}>
-          {/* Headlight housing */}
-          <rect x="168" y="64" width="10" height="6" rx="2" fill="#1a1a1a" stroke="#333" strokeWidth="0.5" />
+          {/* Main headlights - aggressive angle */}
+          <rect x="182" y="65" width="10" height="5" rx="1" fill="#1a1a1a" stroke="#333" strokeWidth="0.5" />
           
-          {/* Headlight glow when acquired */}
           {headlightOn ? (
             <>
               <ellipse 
-                cx="173" 
+                cx="187" 
                 cy="67" 
-                rx="20" 
-                ry="8" 
+                rx="25" 
+                ry="10" 
                 fill="url(#headlightGlow)" 
                 opacity={headlightIntensity}
                 style={{
@@ -342,41 +378,33 @@ export function VehicleSVG({ stage, progress, size = 200 }: VehicleSVGProps) {
                   WebkitTransition: 'opacity 0.1s linear',
                 }}
               />
-              <circle cx="173" cy="67" r="3" fill="#fef9c3" />
+              <circle cx="187" cy="67" r="3.5" fill="#fef9c3" />
             </>
           ) : (
-            <circle cx="173" cy="67" r="2.5" fill="#333" />
+            <circle cx="187" cy="67" r="3" fill="#333" />
           )}
-
-          {/* Tail light */}
-          <rect 
-            x="30" 
-            y="64" 
-            width="6" 
-            height="5" 
-            rx="1" 
-            fill={headlightOn ? '#dc2626' : '#1a1a1a'} 
-            opacity={headlightOn ? 0.8 : 0.5}
-            style={{
-              transition: 'opacity 0.3s ease',
-              WebkitTransition: 'opacity 0.3s ease',
-            }}
-          />
-
-          {/* Mirrors */}
-          <path d="M 68 50 L 64 44 L 66 44 L 70 49 Z" fill="#1a1a1a" stroke="#333" strokeWidth="0.3" />
-          <path d="M 156 50 L 160 44 L 158 44 L 154 49 Z" fill="#1a1a1a" stroke="#333" strokeWidth="0.3" />
+          
+          {/* Fog lights */}
+          <circle cx="180" cy="78" r="2" fill={headlightOn ? '#f59e0b' : '#333'} opacity={headlightOn ? 0.8 : 0.5} />
+          
+          {/* Tail lights - aggressive */}
+          <rect x="25" y="65" width="8" height="6" rx="1" fill={headlightOn ? '#dc2626' : '#1a1a1a'} opacity={headlightOn ? 0.9 : 0.5} />
+          
+          {/* Side mirrors - sporty */}
+          <path d="M 68 52 L 62 46 L 65 46 L 71 51 Z" fill="#1a1a1a" stroke="#333" strokeWidth="0.5" />
+          <path d="M 152 52 L 158 46 L 155 46 L 149 51 Z" fill="#1a1a1a" stroke="#333" strokeWidth="0.5" />
         </g>
       )}
 
-      {/* Engine vibration animation when acquired */}
+      {/* Engine effects */}
       {isAcquired && (
         <g>
+          {/* Hood glow */}
           <rect 
-            x="90" 
-            y="88" 
-            width="30" 
-            height="2" 
+            x="70" 
+            y="42" 
+            width="60" 
+            height="3" 
             rx="1" 
             fill="#22c55e" 
             opacity={engineGlow * 2}
@@ -386,13 +414,26 @@ export function VehicleSVG({ stage, progress, size = 200 }: VehicleSVGProps) {
             }}
           />
           
-          {/* Subtle glow under vehicle */}
+          {/* Exhaust flames */}
+          <path
+            d="M 193 80 L 198 81 L 193 82 Z"
+            fill="#f59e0b"
+            opacity={engineGlow * 3}
+            style={{
+              transition: 'opacity 0.1s linear',
+              WebkitTransition: 'opacity 0.1s linear',
+            }}
+          />
+          
+          {/* Power aura */}
           <ellipse 
             cx="100" 
-            cy="92" 
-            rx="60" 
-            ry="4" 
-            fill="#22c55e" 
+            cy="95" 
+            rx="70" 
+            ry="8" 
+            fill="none"
+            stroke="#22c55e"
+            strokeWidth="0.5"
             opacity={engineGlow}
             style={{
               transition: 'opacity 0.1s linear',
@@ -400,25 +441,6 @@ export function VehicleSVG({ stage, progress, size = 200 }: VehicleSVGProps) {
             }}
           />
         </g>
-      )}
-      
-      {/* Efeito de brilho geral quando acquired */}
-      {isAcquired && (
-        <rect 
-          x="20" 
-          y="30" 
-          width="160" 
-          height="70" 
-          rx="10"
-          fill="none"
-          stroke="#22c55e"
-          strokeWidth="0.5"
-          opacity={engineGlow}
-          style={{
-            transition: 'opacity 0.1s linear',
-            WebkitTransition: 'opacity 0.1s linear',
-          }}
-        />
       )}
     </svg>
   );
