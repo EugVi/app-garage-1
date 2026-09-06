@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import type { VehicleStage } from '../types';
 
 interface VehicleSVGProps {
@@ -12,11 +13,129 @@ export function VehicleSVG({ stage, progress, size = 200 }: VehicleSVGProps) {
   const isAssembly = stage === 'ASSEMBLY';
   const isFinal = stage === 'FINAL_ASSEMBLY';
 
+  const [scanLineY, setScanLineY] = useState(30);
+  const [engineGlow, setEngineGlow] = useState(0.05);
+  const [wheelRotation, setWheelRotation] = useState(0);
+  const [headlightIntensity, setHeadlightIntensity] = useState(0.7);
+
+  // Animação do scan line (blueprint)
+  useEffect(() => {
+    if (!isBlueprint) return;
+    
+    let raf: number;
+    let direction = 1;
+    
+    const animate = () => {
+      setScanLineY(prev => {
+        let newY = prev + direction * 0.5;
+        if (newY >= 110) {
+          newY = 110;
+          direction = -1;
+        } else if (newY <= 30) {
+          newY = 30;
+          direction = 1;
+        }
+        return newY;
+      });
+      raf = requestAnimationFrame(animate);
+    };
+    
+    raf = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(raf);
+  }, [isBlueprint]);
+
+  // Animação do glow do motor (acquired)
+  useEffect(() => {
+    if (!isAcquired) return;
+    
+    let raf: number;
+    let increasing = true;
+    
+    const animate = () => {
+      setEngineGlow(prev => {
+        let newGlow = prev + (increasing ? 0.001 : -0.001);
+        if (newGlow >= 0.12) {
+          newGlow = 0.12;
+          increasing = false;
+        } else if (newGlow <= 0.03) {
+          newGlow = 0.03;
+          increasing = true;
+        }
+        return newGlow;
+      });
+      raf = requestAnimationFrame(animate);
+    };
+    
+    raf = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(raf);
+  }, [isAcquired]);
+
+  // Animação da rotação das rodas (acquired)
+  useEffect(() => {
+    if (!isAcquired) return;
+    
+    let raf: number;
+    let lastTime = performance.now();
+    
+    const rotate = (now: number) => {
+      const deltaTime = (now - lastTime) / 1000;
+      lastTime = now;
+      setWheelRotation(prev => (prev + deltaTime * 30) % 360);
+      raf = requestAnimationFrame(rotate);
+    };
+    
+    raf = requestAnimationFrame(rotate);
+    return () => cancelAnimationFrame(raf);
+  }, [isAcquired]);
+
+  // Animação da intensidade do farol
+  useEffect(() => {
+    if (!isAcquired) return;
+    
+    let raf: number;
+    let increasing = true;
+    
+    const animate = () => {
+      setHeadlightIntensity(prev => {
+        let newIntensity = prev + (increasing ? 0.005 : -0.005);
+        if (newIntensity >= 0.9) {
+          newIntensity = 0.9;
+          increasing = false;
+        } else if (newIntensity <= 0.5) {
+          newIntensity = 0.5;
+          increasing = true;
+        }
+        return newIntensity;
+      });
+      raf = requestAnimationFrame(animate);
+    };
+    
+    raf = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(raf);
+  }, [isAcquired]);
+
   // Opacity levels based on progress
   const blueprintOpacity = isBlueprint ? 0.3 + (progress / 30) * 0.2 : 0;
   const bodyOpacity = isAssembly ? 0.4 + ((progress - 30) / 40) * 0.3 : isFinal || isAcquired ? 0.8 : 0;
   const detailOpacity = isFinal ? 0.6 + ((progress - 70) / 30) * 0.4 : isAcquired ? 1 : 0;
   const headlightOn = isAcquired;
+
+  // Converter hex para rgba
+  const hexToRgba = (hex: string, alpha: number) => {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  };
+
+  // Calcular posição dos raios das rodas
+  const getSpokePosition = (cx: number, cy: number, angle: number, length: number) => {
+    const radian = ((angle + wheelRotation) * Math.PI) / 180;
+    return {
+      x: cx + Math.cos(radian) * length,
+      y: cy + Math.sin(radian) * length,
+    };
+  };
 
   return (
     <svg
@@ -26,6 +145,10 @@ export function VehicleSVG({ stage, progress, size = 200 }: VehicleSVGProps) {
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       className="select-none"
+      style={{
+        willChange: 'transform',
+        transform: 'translateZ(0)', // GPU acceleration
+      }}
     >
       <defs>
         <linearGradient id="bodyGrad" x1="0" y1="0" x2="0" y2="1">
@@ -68,7 +191,8 @@ export function VehicleSVG({ stage, progress, size = 200 }: VehicleSVGProps) {
       {isBlueprint && (
         <g opacity={blueprintOpacity}>
           <rect x="20" y="20" width="160" height="84" fill="url(#grid)" opacity="0.3" />
-          {/* Chassis outline */}
+          
+          {/* Chassis outline - sem animação complexa */}
           <path
             d="M 30 90 L 30 75 Q 30 60 45 55 L 70 48 Q 80 35 100 35 L 130 35 Q 150 35 160 48 L 175 55 Q 180 60 180 75 L 180 90"
             fill="none"
@@ -76,17 +200,27 @@ export function VehicleSVG({ stage, progress, size = 200 }: VehicleSVGProps) {
             strokeWidth="1"
             strokeDasharray="3 2"
             opacity="0.6"
-          >
-            <animate attributeName="stroke-dashoffset" from="0" to="10" dur="0.5s" repeatCount="indefinite" />
-          </path>
+          />
+          
           {/* Wheel positions */}
           <circle cx="55" cy="92" r="14" fill="none" stroke="#22c55e" strokeWidth="1" strokeDasharray="2 1" opacity="0.5" />
           <circle cx="155" cy="92" r="14" fill="none" stroke="#22c55e" strokeWidth="1" strokeDasharray="2 1" opacity="0.5" />
-          {/* Scan line */}
-          <line x1="20" y1="30" x2="180" y2="30" stroke="#22c55e" strokeWidth="0.5" opacity="0.4">
-            <animate attributeName="y1" values="30;110;30" dur="3s" repeatCount="indefinite" />
-            <animate attributeName="y2" values="30;110;30" dur="3s" repeatCount="indefinite" />
-          </line>
+          
+          {/* Scan line - usando JavaScript em vez de animate */}
+          <line 
+            x1="20" 
+            y1={scanLineY} 
+            x2="180" 
+            y2={scanLineY} 
+            stroke="#22c55e" 
+            strokeWidth="0.5" 
+            opacity="0.4"
+            style={{
+              transition: 'all 0.05s linear',
+              WebkitTransition: 'all 0.05s linear',
+            }}
+          />
+          
           {/* Technical labels */}
           <text x="25" y="28" fill="#22c55e" fontSize="3" opacity="0.4" fontFamily="monospace">CHASSIS-01</text>
           <text x="140" y="28" fill="#22c55e" fontSize="3" opacity="0.4" fontFamily="monospace">SCAN...</text>
@@ -140,32 +274,50 @@ export function VehicleSVG({ stage, progress, size = 200 }: VehicleSVGProps) {
           <circle cx="55" cy="92" r="13" fill="#0a0a0a" stroke="#222" strokeWidth="1" />
           <circle cx="55" cy="92" r="9" fill="#1a1a1a" stroke="#333" strokeWidth="0.5" />
           <circle cx="55" cy="92" r="4" fill="#222" />
-          {/* 5 spokes */}
-          {[0, 72, 144, 216, 288].map(angle => (
-            <line
-              key={`rw-${angle}`}
-              x1="55" y1="92"
-              x2={55 + Math.cos((angle * Math.PI) / 180) * 8}
-              y2={92 + Math.sin((angle * Math.PI) / 180) * 8}
-              stroke="#444"
-              strokeWidth="1"
-            />
-          ))}
+          
+          {/* Spokes com rotação via JavaScript */}
+          {[0, 72, 144, 216, 288].map(angle => {
+            const end = getSpokePosition(55, 92, angle, 8);
+            return (
+              <line
+                key={`rw-${angle}`}
+                x1="55" 
+                y1="92"
+                x2={end.x}
+                y2={end.y}
+                stroke="#444"
+                strokeWidth="1"
+                style={{
+                  transition: 'all 0.05s linear',
+                  WebkitTransition: 'all 0.05s linear',
+                }}
+              />
+            );
+          })}
 
           {/* Front wheel */}
           <circle cx="155" cy="92" r="13" fill="#0a0a0a" stroke="#222" strokeWidth="1" />
           <circle cx="155" cy="92" r="9" fill="#1a1a1a" stroke="#333" strokeWidth="0.5" />
           <circle cx="155" cy="92" r="4" fill="#222" />
-          {[0, 72, 144, 216, 288].map(angle => (
-            <line
-              key={`fw-${angle}`}
-              x1="155" y1="92"
-              x2={155 + Math.cos((angle * Math.PI) / 180) * 8}
-              y2={92 + Math.sin((angle * Math.PI) / 180) * 8}
-              stroke="#444"
-              strokeWidth="1"
-            />
-          ))}
+          
+          {[0, 72, 144, 216, 288].map(angle => {
+            const end = getSpokePosition(155, 92, angle, 8);
+            return (
+              <line
+                key={`fw-${angle}`}
+                x1="155" 
+                y1="92"
+                x2={end.x}
+                y2={end.y}
+                stroke="#444"
+                strokeWidth="1"
+                style={{
+                  transition: 'all 0.05s linear',
+                  WebkitTransition: 'all 0.05s linear',
+                }}
+              />
+            );
+          })}
         </g>
       )}
 
@@ -174,10 +326,22 @@ export function VehicleSVG({ stage, progress, size = 200 }: VehicleSVGProps) {
         <g opacity={detailOpacity}>
           {/* Headlight housing */}
           <rect x="168" y="64" width="10" height="6" rx="2" fill="#1a1a1a" stroke="#333" strokeWidth="0.5" />
+          
           {/* Headlight glow when acquired */}
           {headlightOn ? (
             <>
-              <ellipse cx="173" cy="67" rx="20" ry="8" fill="url(#headlightGlow)" opacity="0.7" />
+              <ellipse 
+                cx="173" 
+                cy="67" 
+                rx="20" 
+                ry="8" 
+                fill="url(#headlightGlow)" 
+                opacity={headlightIntensity}
+                style={{
+                  transition: 'opacity 0.1s linear',
+                  WebkitTransition: 'opacity 0.1s linear',
+                }}
+              />
               <circle cx="173" cy="67" r="3" fill="#fef9c3" />
             </>
           ) : (
@@ -185,7 +349,19 @@ export function VehicleSVG({ stage, progress, size = 200 }: VehicleSVGProps) {
           )}
 
           {/* Tail light */}
-          <rect x="30" y="64" width="6" height="5" rx="1" fill={headlightOn ? '#dc2626' : '#1a1a1a'} opacity={headlightOn ? 0.8 : 0.5} />
+          <rect 
+            x="30" 
+            y="64" 
+            width="6" 
+            height="5" 
+            rx="1" 
+            fill={headlightOn ? '#dc2626' : '#1a1a1a'} 
+            opacity={headlightOn ? 0.8 : 0.5}
+            style={{
+              transition: 'opacity 0.3s ease',
+              WebkitTransition: 'opacity 0.3s ease',
+            }}
+          />
 
           {/* Mirrors */}
           <path d="M 68 50 L 64 44 L 66 44 L 70 49 Z" fill="#1a1a1a" stroke="#333" strokeWidth="0.3" />
@@ -196,14 +372,53 @@ export function VehicleSVG({ stage, progress, size = 200 }: VehicleSVGProps) {
       {/* Engine vibration animation when acquired */}
       {isAcquired && (
         <g>
-          <rect x="90" y="88" width="30" height="2" rx="1" fill="#22c55e" opacity="0.3">
-            <animate attributeName="opacity" values="0.3;0.1;0.3" dur="1.5s" repeatCount="indefinite" />
-          </rect>
+          <rect 
+            x="90" 
+            y="88" 
+            width="30" 
+            height="2" 
+            rx="1" 
+            fill="#22c55e" 
+            opacity={engineGlow * 2}
+            style={{
+              transition: 'opacity 0.1s linear',
+              WebkitTransition: 'opacity 0.1s linear',
+            }}
+          />
+          
           {/* Subtle glow under vehicle */}
-          <ellipse cx="100" cy="92" rx="60" ry="4" fill="#22c55e" opacity="0.05">
-            <animate attributeName="opacity" values="0.05;0.12;0.05" dur="2s" repeatCount="indefinite" />
-          </ellipse>
+          <ellipse 
+            cx="100" 
+            cy="92" 
+            rx="60" 
+            ry="4" 
+            fill="#22c55e" 
+            opacity={engineGlow}
+            style={{
+              transition: 'opacity 0.1s linear',
+              WebkitTransition: 'opacity 0.1s linear',
+            }}
+          />
         </g>
+      )}
+      
+      {/* Efeito de brilho geral quando acquired */}
+      {isAcquired && (
+        <rect 
+          x="20" 
+          y="30" 
+          width="160" 
+          height="70" 
+          rx="10"
+          fill="none"
+          stroke="#22c55e"
+          strokeWidth="0.5"
+          opacity={engineGlow}
+          style={{
+            transition: 'opacity 0.1s linear',
+            WebkitTransition: 'opacity 0.1s linear',
+          }}
+        />
       )}
     </svg>
   );
