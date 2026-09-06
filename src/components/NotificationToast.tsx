@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { Trophy, Zap, CircleCheck as CheckCircle2 } from 'lucide-react';
 import { useFleet } from '../store';
 import { ACHIEVEMENTS } from '../constants';
@@ -14,24 +14,32 @@ interface ToastItem {
   color: string;
 }
 
+let toastIdCounter = 0;
+
 export function NotificationToast() {
   const { state, clearNotifications } = useFleet();
   const { pendingNotifications, settings } = state;
   const [toasts, setToasts] = useState<ToastItem[]>([]);
-  const [shown, setShown] = useState(false);
+  const lastProcessedRef = useRef<string>('');
+
+  const dismissToast = useCallback((id: string) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  }, []);
 
   useEffect(() => {
-    if (shown) return;
     const { achievementIds, xpGained, vehicleReady } = pendingNotifications;
     if (achievementIds.length === 0 && xpGained === 0 && vehicleReady === null) return;
 
-    setShown(true);
+    const batchKey = `${achievementIds.join(',')}-${xpGained}-${vehicleReady}`;
+    if (batchKey === lastProcessedRef.current) return;
+    lastProcessedRef.current = batchKey;
+
     const items: ToastItem[] = [];
 
     if (vehicleReady !== null) {
       const v = state.vehicles[vehicleReady];
       items.push({
-        id: `vehicle-${Date.now()}`,
+        id: `vehicle-${toastIdCounter++}`,
         type: 'vehicle',
         title: v ? `${v.name} Ready!` : 'Vehicle Ready!',
         subtitle: 'Your fleet has grown.',
@@ -44,7 +52,7 @@ export function NotificationToast() {
       const ach = ACHIEVEMENTS.find(a => a.id === id);
       if (ach) {
         items.push({
-          id: `ach-${id}-${Date.now()}`,
+          id: `ach-${id}-${toastIdCounter++}`,
           type: 'achievement',
           title: ach.name,
           subtitle: ach.description,
@@ -56,7 +64,7 @@ export function NotificationToast() {
 
     if (xpGained > 0) {
       items.push({
-        id: `xp-${Date.now()}`,
+        id: `xp-${toastIdCounter++}`,
         type: 'xp',
         title: `+${xpGained.toLocaleString()} XP`,
         subtitle: 'Fleet experience gained',
@@ -65,8 +73,8 @@ export function NotificationToast() {
       });
     }
 
-    setToasts(items);
     if (items.length > 0) {
+      setToasts(prev => [...prev, ...items]);
       playSound(settings.soundEnabled, sounds.levelUp);
       haptics.levelUp();
     }
@@ -74,25 +82,24 @@ export function NotificationToast() {
     const timer = setTimeout(() => {
       setToasts([]);
       clearNotifications();
-      setShown(false);
     }, 3500);
 
     return () => clearTimeout(timer);
-  }, [pendingNotifications, settings.soundEnabled, clearNotifications, shown, state.vehicles]);
+  }, [pendingNotifications, settings.soundEnabled, clearNotifications, state.vehicles]);
 
   if (toasts.length === 0) return null;
 
   return (
-    <div className="fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] z-[120] px-4 space-y-2 pointer-events-none"
+    <div
+      className="fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] z-[120] px-4 space-y-2 pointer-events-none"
       style={{ paddingTop: 'env(safe-area-inset-top)' }}
     >
       {toasts.map((t, i) => (
         <div
           key={t.id}
-          className={`bg-zinc-900/95 backdrop-blur-xl border ${t.color} rounded-2xl p-3.5 flex items-center gap-3 pointer-events-auto`}
-          style={{
-            animation: `toastSlideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) ${i * 0.12}s both`,
-          }}
+          className={`bg-zinc-900/95 backdrop-blur-xl border ${t.color} rounded-2xl p-3.5 flex items-center gap-3 pointer-events-auto animate-[toastSlideIn_0.4s_cubic-bezier(0.16,1,0.3,1)_both]`}
+          style={{ animationDelay: `${i * 0.12}s` }}
+          onClick={() => dismissToast(t.id)}
         >
           <div className="flex-shrink-0 w-11 h-11 rounded-xl bg-white/5 flex items-center justify-center">
             {t.icon}

@@ -10,6 +10,7 @@
   html {
     background: #09090b;
     color-scheme: dark;
+    height: 100dvh;
   }
 
   body {
@@ -17,6 +18,8 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
+    min-height: 100dvh;
+    touch-action: manipulation;
   }
 
   /* Hide scrollbar but keep scrollable */

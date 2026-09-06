@@ -115,7 +115,7 @@ export function GarageView() {
   const showBriefing = state.lastBriefingDate !== today;
 
   return (
-    <div className="min-h-screen pb-28">
+    <div className="min-h-[100dvh] pb-32">
       <NotificationToast />
       <Confetti active={showConfetti} onComplete={() => setShowConfetti(false)} />
 

@@ -36,7 +36,7 @@ export function HistoryView() {
   };
 
   return (
-    <div className="min-h-screen pb-28">
+    <div className="min-h-[100dvh] pb-32">
       <div className="px-4 pt-3 pb-2" style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}>
         <h1 className="text-2xl font-black text-white tracking-tight mb-4">HISTORY</h1>
 

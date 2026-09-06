@@ -342,7 +342,7 @@ function loadState(): FleetState {
         vehicles: parsed.settings?.vehicles?.length ? parsed.settings.vehicles : DEFAULT_SETTINGS.vehicles,
       },
       vehicles: parsed.vehicles?.length ? parsed.vehicles : defaults.vehicles,
-      pendingNotifications: parsed.pendingNotifications ?? { achievementIds: [], xpGained: 0, vehicleReady: null },
+      pendingNotifications: { achievementIds: [], xpGained: 0, vehicleReady: null },
     };
   } catch {
     return defaultFleetState();

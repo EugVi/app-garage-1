@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Car } from 'lucide-react';
 
 interface SplashScreenProps {
@@ -7,32 +7,38 @@ interface SplashScreenProps {
 
 export function SplashScreen({ onComplete }: SplashScreenProps) {
   const [fading, setFading] = useState(false);
+  const [visible, setVisible] = useState(true);
+
+  const stableOnComplete = useCallback(() => {
+    setVisible(false);
+    onComplete();
+  }, [onComplete]);
 
   useEffect(() => {
     const prefersReduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     if (prefersReduced) {
-      onComplete();
+      stableOnComplete();
       return;
     }
 
     const fadeTimer = setTimeout(() => setFading(true), 1900);
-    const doneTimer = setTimeout(onComplete, 2400);
+    const doneTimer = setTimeout(stableOnComplete, 2400);
     return () => {
       clearTimeout(fadeTimer);
       clearTimeout(doneTimer);
     };
-  }, [onComplete]);
+  }, [stableOnComplete]);
+
+  if (!visible) return null;
 
   return (
     <div
-      className={`fixed inset-0 z-[200] flex flex-col items-center justify-center bg-zinc-950 max-w-[480px] mx-auto ${
-        fading ? 'animate-[splashFadeOut_0.5s_ease-out_forwards]' : ''
+      className={`fixed inset-0 z-[200] flex flex-col items-center justify-center bg-zinc-950 max-w-[480px] mx-auto transition-opacity duration-500 ${
+        fading ? 'opacity-0' : 'opacity-100'
       }`}
     >
-      {/* Ambient glow */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-emerald-500/[0.06] rounded-full blur-3xl" />
 
-      {/* Expanding rings */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
         <div
           className="w-24 h-24 border-2 border-emerald-500/20 rounded-full"
@@ -46,14 +52,12 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
         />
       </div>
 
-      {/* Logo */}
       <div className="relative" style={{ animation: 'splashLogoIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards' }}>
         <div className="w-20 h-20 rounded-2xl bg-gradient-to-b from-emerald-500/20 to-emerald-500/5 border border-emerald-500/30 flex items-center justify-center shadow-[0_0_30px_rgba(34,197,94,0.15)]">
           <Car size={40} className="text-emerald-400" />
         </div>
       </div>
 
-      {/* Title */}
       <div
         className="mt-6 text-center"
         style={{ animation: 'contentSlideUp 0.6s ease-out 0.6s both' }}
@@ -73,14 +77,13 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
         </p>
       </div>
 
-      {/* Loading bar */}
       <div
         className="absolute bottom-20 w-32 h-0.5 bg-white/5 rounded-full overflow-hidden"
         style={{ animation: 'contentSlideUp 0.5s ease-out 1s both' }}
       >
         <div
           className="h-full bg-emerald-500 rounded-full"
-          style={{ animation: 'splashRing 1.5s ease-out 1s forwards', transformOrigin: 'left' }}
+          style={{ animation: 'splashBar 1.5s ease-out 1s forwards', transformOrigin: 'left' }}
         />
       </div>
     </div>

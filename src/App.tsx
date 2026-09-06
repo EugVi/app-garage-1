@@ -17,7 +17,7 @@ function AppContent() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white max-w-[480px] mx-auto relative overflow-x-hidden">
+    <div className="min-h-[100dvh] bg-zinc-950 text-white max-w-[480px] mx-auto relative overflow-x-hidden">
       {/* Ambient background glow */}
       <div className="fixed inset-0 pointer-events-none max-w-[480px] mx-auto">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-96 h-96 bg-emerald-500/[0.03] rounded-full blur-3xl" />

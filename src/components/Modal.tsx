@@ -28,9 +28,16 @@ export function Modal({ open, onClose, title, children, accent = 'default' }: Mo
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center" role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]" onClick={onClose} />
       <div
-        className={`relative w-full max-w-[480px] bg-zinc-900/95 backdrop-blur-xl border ${accentBorder} ${accentGlow} rounded-t-3xl sm:rounded-3xl p-5 pb-8 animate-[slideUp_0.3s_cubic-bezier(0.16,1,0.3,1)] max-h-[85vh] overflow-y-auto`}
-        style={{ paddingBottom: 'max(2rem, env(safe-area-inset-bottom))' }}
+        className={`relative w-full max-w-[480px] bg-zinc-900/95 backdrop-blur-xl border ${accentBorder} ${accentGlow} rounded-t-3xl sm:rounded-3xl p-5 animate-[slideUp_0.3s_cubic-bezier(0.16,1,0.3,1)] max-h-[90dvh] overflow-y-auto overscroll-contain`}
+        style={{
+          paddingBottom: 'max(2rem, env(safe-area-inset-bottom))',
+          paddingTop: '1.25rem',
+        }}
       >
+        {/* Drag handle for bottom sheet */}
+        <div className="sm:hidden flex justify-center mb-3">
+          <div className="w-10 h-1 rounded-full bg-white/15" />
+        </div>
         {title && (
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold text-white tracking-wide">{title}</h2>
