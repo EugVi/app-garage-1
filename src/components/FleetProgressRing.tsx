@@ -27,13 +27,14 @@ export function FleetProgressRing({
 }: FleetProgressRingProps) {
   const [displayPct, setDisplayPct] = useState(0);
   const [isPulsing, setIsPulsing] = useState(false);
+  const [orbitAngle, setOrbitAngle] = useState(0);
   
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const clamped = Math.min(100, Math.max(0, pct));
   const offset = circumference - (clamped / 100) * circumference;
   
-  // Animação suave usando requestAnimationFrame
+  // Animação suave da porcentagem
   useEffect(() => {
     let raf: number;
     const start = performance.now();
@@ -57,6 +58,25 @@ export function FleetProgressRing({
     raf = requestAnimationFrame(update);
     return () => cancelAnimationFrame(raf);
   }, [clamped]);
+
+  // Animação orbital usando JavaScript (funciona em mobile)
+  useEffect(() => {
+    if (!animated || displayPct === 0) return;
+    
+    let raf: number;
+    let lastTime = performance.now();
+    
+    const rotate = (now: number) => {
+      const deltaTime = (now - lastTime) / 1000;
+      lastTime = now;
+      
+      setOrbitAngle(prev => (prev + deltaTime * 60) % 360); // 60 graus por segundo
+      raf = requestAnimationFrame(rotate);
+    };
+    
+    raf = requestAnimationFrame(rotate);
+    return () => cancelAnimationFrame(raf);
+  }, [animated, displayPct]);
 
   // Efeito de pulso quando completa
   useEffect(() => {
@@ -82,12 +102,22 @@ export function FleetProgressRing({
     return { angle, isActive };
   });
 
-  // Partículas orbitais
+  // Posição das partículas orbitais calculada por JavaScript
   const orbitalParticles = [
-    { size: 3, duration: 3, delay: 0, distance: size * 0.55 },
-    { size: 2, duration: 4, delay: 0.5, distance: size * 0.6 },
-    { size: 4, duration: 3.5, delay: 1, distance: size * 0.5 },
-  ];
+    { size: 3, distance: size * 0.45, speed: 1, color: color },
+    { size: 2, distance: size * 0.5, speed: 0.8, color: hexToRgba(color, 0.7) },
+    { size: 4, distance: size * 0.42, speed: 1.2, color: '#ffffff' },
+  ].map((particle, index) => {
+    const angle = (orbitAngle * particle.speed + index * 120) * (Math.PI / 180);
+    const x = Math.cos(angle) * particle.distance;
+    const y = Math.sin(angle) * particle.distance;
+    
+    return {
+      ...particle,
+      x: size / 2 + x - particle.size / 2,
+      y: size / 2 + y - particle.size / 2,
+    };
+  });
 
   return (
     <div 
@@ -117,7 +147,7 @@ export function FleetProgressRing({
         />
       )}
       
-      {/* Partículas orbitais */}
+      {/* Partículas orbitais - Agora usam left/top com transições */}
       {animated && displayPct > 0 && orbitalParticles.map((particle, index) => (
         <div
           key={index}
@@ -125,17 +155,19 @@ export function FleetProgressRing({
           style={{
             width: particle.size,
             height: particle.size,
-            background: color,
-            boxShadow: `0 0 ${particle.size * 2}px ${hexToRgba(color, 0.8)}`,
-            animation: `orbitalRotate ${particle.duration}s linear ${particle.delay}s infinite`,
-            WebkitAnimation: `orbitalRotate ${particle.duration}s linear ${particle.delay}s infinite`,
+            left: particle.x,
+            top: particle.y,
+            background: particle.color,
+            boxShadow: `0 0 ${particle.size * 2}px ${hexToRgba(color, 0.6)}`,
+            transition: 'left 0.05s linear, top 0.05s linear',
+            WebkitTransition: 'left 0.05s linear, top 0.05s linear',
+            opacity: displayPct > 0 && displayPct < 100 ? 1 : 0,
           }}
         />
       ))}
       
       {/* SVG do anel */}
       <svg width={size} height={size} className="-rotate-90">
-        {/* Gradiente */}
         <defs>
           <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
             <stop offset="0%" stopColor={color} />
@@ -143,7 +175,6 @@ export function FleetProgressRing({
             <stop offset="100%" stopColor={hexToRgba(color, 0.4)} />
           </linearGradient>
           
-          {/* Gradiente para o brilho */}
           <filter id="glowFilter">
             <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
             <feMerge>
@@ -267,8 +298,6 @@ export function FleetProgressRing({
             style={{
               color: color,
               opacity: 0.7,
-              animation: 'fadeInUp 0.3s ease-out',
-              WebkitAnimation: 'fadeInUp 0.3s ease-out',
             }}
           >
             {Math.round(displayPct)}%
@@ -286,34 +315,6 @@ export function FleetProgressRing({
             100% {
               transform: scale(1.2);
               opacity: 0;
-            }
-          }
-          
-          @keyframes orbitalRotate {
-            0% {
-              transform: rotate(0deg) translateX(${size * 0.55}px) rotate(0deg);
-              opacity: 0;
-            }
-            25% {
-              opacity: 1;
-            }
-            75% {
-              opacity: 1;
-            }
-            100% {
-              transform: rotate(360deg) translateX(${size * 0.55}px) rotate(-360deg);
-              opacity: 0;
-            }
-          }
-          
-          @keyframes fadeInUp {
-            0% {
-              transform: translateY(5px);
-              opacity: 0;
-            }
-            100% {
-              transform: translateY(0);
-              opacity: 0.7;
             }
           }
         `}
