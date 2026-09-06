@@ -1,4 +1,3 @@
-```tsx
 import {
   useEffect,
   useRef,
@@ -279,4 +278,3 @@ export function SplashScreen({
     </div>
   );
 }
-```
