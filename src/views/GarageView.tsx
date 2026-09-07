@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Fuel, Flame, Lock, ChevronRight, Zap, Sun, Trophy, TrendingUp, RotateCw, ChartBar as BarChart3, Plus } from 'lucide-react';
+import { Fuel, Flame, Lock, ChevronRight, Zap, Sun, Trophy, TrendingUp, RotateCw, ChartBar as BarChart3, Plus, Sparkles, Gauge, Wallet, Calendar } from 'lucide-react';
 import { useFleet } from '../store';
 import { GlassCard } from '../components/GlassCard';
 import { ProgressBar } from '../components/ProgressBar';
@@ -52,6 +52,9 @@ export function GarageView() {
   const [showExpand, setShowExpand] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const [showComplete, setShowComplete] = useState(false);
+  const [garageGlow, setGarageGlow] = useState(0);
+  const [selectedBay, setSelectedBay] = useState<number | null>(null);
+  
   const prevCompleteRef = useRef(0);
   const prevVehicleCountRef = useRef(state.vehicles.length);
   const fleetWasCompleteRef = useRef(false);
@@ -69,6 +72,35 @@ export function GarageView() {
 
   const fleetPct = goal > 0 ? (balance / goal) * 100 : 0;
   const hasExpanded = state.vehicles.length > INITIAL_FLEET_SIZE;
+
+  // Animação do glow da garagem
+  useEffect(() => {
+    let raf: number;
+    let increasing = true;
+    
+    const animate = () => {
+      setGarageGlow(prev => {
+        let newGlow = prev + (increasing ? 0.0005 : -0.0005);
+        if (newGlow >= 0.08) {
+          newGlow = 0.08;
+          increasing = false;
+        } else if (newGlow <= 0.02) {
+          newGlow = 0.02;
+          increasing = true;
+        }
+        return newGlow;
+      });
+      raf = requestAnimationFrame(animate);
+    };
+    
+    if (completed > 0) {
+      raf = requestAnimationFrame(animate);
+    }
+    
+    return () => {
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, [completed]);
 
   useEffect(() => {
     const currentComplete = completed;
@@ -115,7 +147,17 @@ export function GarageView() {
   const showBriefing = state.lastBriefingDate !== today;
 
   return (
-    <div className="min-h-[100dvh] pb-32">
+    <div className="min-h-[100dvh] pb-32 relative">
+      {/* Background effects */}
+      <div 
+        className="fixed inset-0 pointer-events-none"
+        style={{
+          background: `radial-gradient(circle at 50% 30%, rgba(34,197,94,${garageGlow}) 0%, transparent 50%)`,
+          transition: 'opacity 0.5s ease',
+          WebkitTransition: 'opacity 0.5s ease',
+        }}
+      />
+      
       <NotificationToast />
       <Confetti active={showConfetti} onComplete={() => setShowConfetti(false)} />
 
@@ -139,67 +181,105 @@ export function GarageView() {
       )}
 
       {/* Hero header */}
-      <div className="px-4 pt-3 pb-4" style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}>
+      <div className="px-4 pt-3 pb-4 relative z-10" style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}>
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h1 className="text-2xl font-black text-white tracking-tight">FLEET HQ</h1>
+            <h1 className="text-2xl font-black text-white tracking-tight flex items-center gap-2">
+              FLEET HQ
+              {completed > 0 && (
+                <Sparkles size={16} className="text-emerald-400 animate-pulse" />
+              )}
+            </h1>
             <p className="text-xs text-zinc-500 tracking-wider">FLEET LEVEL {String(level.level).padStart(2, '0')} — {level.name}</p>
           </div>
           <button
             onClick={() => setShowAchievements(true)}
             className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-3 py-1.5 active:scale-95 transition-transform"
+            style={{
+              boxShadow: state.xp > 0 ? '0 0 15px rgba(245,158,11,0.2)' : 'none',
+            }}
           >
             <Trophy size={14} className="text-amber-400" />
-            <span className="text-xs font-bold text-zinc-300">{state.xp.toLocaleString()} XP</span>
+            <span className="text-xs font-bold text-zinc-300">
+              <RollingNumber value={state.xp} glowEffect glowColor="rgba(245,158,11,0.3)" />
+            </span>
           </button>
         </div>
 
         <div className="mb-4">
-          <ProgressBar pct={level.progress * 100} color="#f59e0b" height={3} />
+          <ProgressBar 
+            pct={level.progress * 100} 
+            color="#f59e0b" 
+            height={3}
+            glow={level.progress > 0}
+            showParticles={level.progress > 0}
+          />
         </div>
 
         {/* Status cards */}
         <div className="grid grid-cols-2 gap-2.5 mb-3">
-          <GlassCard className="p-3.5">
+          <GlassCard className="p-3.5" intensity="strong" glow={completed > 0} glowColor="rgba(34,197,94,0.08)">
             <div className="flex items-center gap-1.5 mb-1">
               <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Fleet Progress</span>
             </div>
             <div className="flex items-baseline gap-1">
               <span className="text-2xl font-black text-white">
-                <RollingNumber value={completed} />
+                <RollingNumber 
+                  value={completed} 
+                  showPlusSign 
+                  glowEffect 
+                  glowColor="rgba(34,197,94,0.4)"
+                  showParticles
+                />
               </span>
               <span className="text-sm text-zinc-600 font-bold">/ {state.vehicles.length}</span>
             </div>
             <span className="text-[10px] text-zinc-600">Vehicles</span>
           </GlassCard>
 
-          <GlassCard className="p-3.5">
+          <GlassCard className="p-3.5" intensity="strong" glow={value > 0} glowColor="rgba(34,197,94,0.08)">
             <div className="flex items-center gap-1.5 mb-1">
+              <Wallet size={10} className="text-emerald-400" />
               <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Fleet Value</span>
             </div>
             <div className="text-xl font-black text-emerald-400">
-              <RollingNumber value={value} formatFn={(n) => formatMoney(n, settings)} />
+              <RollingNumber 
+                value={value} 
+                formatFn={(n) => formatMoney(n, settings)}
+                glowEffect
+                glowColor="rgba(34,197,94,0.3)"
+              />
             </div>
           </GlassCard>
 
-          <GlassCard className="p-3.5">
+          <GlassCard className="p-3.5" intensity="strong" glow={monthlyIncome > 0} glowColor="rgba(34,197,94,0.06)">
             <div className="flex items-center gap-1.5 mb-1">
               <TrendingUp size={10} className="text-emerald-400" />
               <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Monthly Income</span>
             </div>
             <div className="text-xl font-black text-emerald-400">
-              <RollingNumber value={monthlyIncome} formatFn={(n) => formatMoney(n, settings)} />
+              <RollingNumber 
+                value={monthlyIncome} 
+                formatFn={(n) => formatMoney(n, settings)}
+                glowEffect
+                glowColor="rgba(34,197,94,0.3)"
+                showPlusSign
+              />
             </div>
           </GlassCard>
 
-          <GlassCard className="p-3.5" glow={freedom >= 30} glowColor="rgba(245,158,11,0.1)">
+          <GlassCard className="p-3.5" intensity="strong" glow={freedom >= 30} glowColor="rgba(245,158,11,0.1)">
             <div className="flex items-center gap-1.5 mb-1">
-              <Sun size={10} className="text-amber-400" />
+              <Calendar size={10} className="text-amber-400" />
               <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Freedom</span>
             </div>
             <div className="flex items-baseline gap-1">
               <span className="text-2xl font-black text-amber-400">
-                <RollingNumber value={freedom} />
+                <RollingNumber 
+                  value={freedom}
+                  glowEffect
+                  glowColor="rgba(245,158,11,0.3)"
+                />
               </span>
               <span className="text-xs text-zinc-600 font-bold">DAYS</span>
             </div>
@@ -209,14 +289,20 @@ export function GarageView() {
         {/* Build streak + Trading allocated */}
         <div className="flex gap-2.5 mb-3 flex-wrap">
           {state.streak.count > 0 && (
-            <div className="flex items-center gap-1.5 bg-orange-500/10 border border-orange-500/20 rounded-full px-3 py-1.5">
+            <div 
+              className="flex items-center gap-1.5 bg-orange-500/10 border border-orange-500/20 rounded-full px-3 py-1.5"
+              style={{
+                animation: state.streak.count > 0 ? 'streakGlow 2s ease-in-out infinite' : 'none',
+                WebkitAnimation: state.streak.count > 0 ? 'streakGlow 2s ease-in-out infinite' : 'none',
+              }}
+            >
               <span className="text-sm">🔥</span>
               <span className="text-xs font-bold text-orange-300">BUILD STREAK: {state.streak.count} DAYS</span>
             </div>
           )}
           {tradingAllocated > 0 && (
             <div className="flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-3 py-1.5">
-              <Zap size={12} className="text-emerald-400" />
+              <Zap size={12} className="text-emerald-400 animate-pulse" />
               <span className="text-xs font-bold text-emerald-300">TRADING: {formatMoney(tradingAllocated, settings, { compact: true })}</span>
             </div>
           )}
@@ -224,9 +310,14 @@ export function GarageView() {
       </div>
 
       {/* Garage */}
-      <div className="px-4">
+      <div className="px-4 relative z-10">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-bold text-zinc-400 tracking-widest">THE GARAGE</h2>
+          <h2 className="text-sm font-bold text-zinc-400 tracking-widest flex items-center gap-2">
+            THE GARAGE
+            {completed > 0 && (
+              <Gauge size={14} className="text-emerald-400 animate-pulse" />
+            )}
+          </h2>
           <span className="text-xs text-zinc-600">{completed}/{state.vehicles.length} Acquired</span>
         </div>
 
@@ -237,7 +328,9 @@ export function GarageView() {
             background: `linear-gradient(180deg,
               rgba(${fleetPct > 0 ? '20,20,20' : '10,10,10'}) 0%,
               rgba(${fleetPct > 50 ? '15,15,15' : '8,8,8'}) 100%)`,
-            boxShadow: fleetPct > 0 ? `inset 0 0 ${40 + fleetPct * 0.6}px rgba(34,197,94,${0.02 + fleetPct * 0.0008})` : 'none',
+            boxShadow: fleetPct > 0 
+              ? `inset 0 0 ${40 + fleetPct * 0.6}px rgba(34,197,94,${0.02 + fleetPct * 0.0008}), 0 0 30px rgba(34,197,94,${garageGlow * 0.5})` 
+              : 'none',
           }}
         >
           {/* Ceiling lights — dynamic count */}
@@ -251,6 +344,8 @@ export function GarageView() {
                   style={{
                     background: on ? 'rgba(34,197,94,0.4)' : 'rgba(255,255,255,0.05)',
                     boxShadow: on ? '0 0 15px rgba(34,197,94,0.3), 0 8px 30px rgba(34,197,94,0.1)' : 'none',
+                    animation: on ? 'lightFlicker 3s ease-in-out infinite' : 'none',
+                    WebkitAnimation: on ? 'lightFlicker 3s ease-in-out infinite' : 'none',
                   }}
                 />
               );
@@ -265,6 +360,7 @@ export function GarageView() {
               const pct = vehicleOverallPct(v, cfg);
               const stage: VehicleStage = vehicleStage(v, cfg);
               const isNewBay = hasExpanded && i >= INITIAL_FLEET_SIZE;
+              const isSelected = selectedBay === i;
 
               return (
                 <div
@@ -274,14 +370,35 @@ export function GarageView() {
                       ? 'border-white/[0.08] bg-white/[0.02] cursor-pointer active:scale-[0.99]'
                       : 'border-white/[0.03] bg-black/40'
                   }`}
-                  style={isNewBay ? { animation: 'expandBayIn 0.5s ease-out' } : undefined}
-                  onClick={() => unlocked && setDetailVehicle(i)}
+                  style={{
+                    ...(isNewBay ? { animation: 'expandBayIn 0.5s ease-out' } : {}),
+                    ...(isSelected ? {
+                      borderColor: 'rgba(34,197,94,0.3)',
+                      boxShadow: '0 0 20px rgba(34,197,94,0.1), inset 0 0 20px rgba(34,197,94,0.05)',
+                    } : {}),
+                    ...(stage === 'ACQUIRED' ? {
+                      borderColor: 'rgba(34,197,94,0.15)',
+                    } : {}),
+                  }}
+                  onClick={() => {
+                    if (unlocked) {
+                      setSelectedBay(i);
+                      setDetailVehicle(i);
+                      haptics.light();
+                    }
+                  }}
                 >
                   <div className="flex items-center justify-between px-4 pt-3">
                     <div className="flex items-center gap-2">
                       <span className="text-[10px] font-bold text-zinc-600 tracking-widest">BAY {String(i + 1).padStart(2, '0')}</span>
                       {v.ready && (
-                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
+                        <span 
+                          className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/20"
+                          style={{
+                            animation: 'earningPulse 2s ease-in-out infinite',
+                            WebkitAnimation: 'earningPulse 2s ease-in-out infinite',
+                          }}
+                        >
                           EARNING
                         </span>
                       )}
@@ -292,7 +409,18 @@ export function GarageView() {
                   {unlocked ? (
                     <>
                       <div className="flex flex-col items-center py-2">
-                        <div className={`transition-all duration-700 ${stage === 'ACQUIRED' ? 'drop-shadow-[0_0_15px_rgba(34,197,94,0.2)]' : ''}`}>
+                        <div 
+                          className={`transition-all duration-700 ${
+                            stage === 'ACQUIRED' 
+                              ? 'drop-shadow-[0_0_15px_rgba(34,197,94,0.2)]' 
+                              : ''
+                          }`}
+                          style={{
+                            transform: isSelected ? 'scale(1.05)' : 'scale(1)',
+                            transition: 'transform 0.3s ease',
+                            WebkitTransition: 'transform 0.3s ease',
+                          }}
+                        >
                           <VehicleSVG stage={stage} progress={pct} size={180} />
                         </div>
 
@@ -314,16 +442,29 @@ export function GarageView() {
                             color={stage === 'ACQUIRED' ? '#22c55e' : '#3b82f6'}
                             height={4}
                             glow={stage === 'ACQUIRED'}
+                            showParticles={stage === 'ACQUIRED'}
+                            showPercentage={pct > 0 && pct < 100}
                           />
                           <div className="flex justify-between mt-1">
-                            <span className="text-[10px] text-zinc-600">{pct.toFixed(0)}%</span>
+                            <span className="text-[10px] text-zinc-600">
+                              <RollingNumber value={pct} duration={400} />
+                              %
+                            </span>
                             <span className="text-[10px] text-zinc-600">{formatMoney(v.savedNAD + v.deploymentSavedNAD, settings, { compact: true })}</span>
                           </div>
                         </div>
                       </div>
 
                       <div className="flex items-center justify-end px-4 pb-2">
-                        <ChevronRight size={14} className="text-zinc-600" />
+                        <ChevronRight 
+                          size={14} 
+                          className="text-zinc-600"
+                          style={{
+                            transform: isSelected ? 'translateX(2px)' : 'translateX(0)',
+                            transition: 'transform 0.3s ease',
+                            WebkitTransition: 'transform 0.3s ease',
+                          }}
+                        />
                       </div>
                     </>
                   ) : (
@@ -344,7 +485,11 @@ export function GarageView() {
           {completed > 0 && (
             <div
               className="h-8 transition-all duration-1000"
-              style={{ background: 'linear-gradient(180deg, rgba(34,197,94,0.03) 0%, transparent 100%)' }}
+              style={{ 
+                background: 'linear-gradient(180deg, rgba(34,197,94,0.03) 0%, transparent 100%)',
+                animation: 'floorGlow 3s ease-in-out infinite',
+                WebkitAnimation: 'floorGlow 3s ease-in-out infinite',
+              }}
             />
           )}
         </div>
@@ -354,6 +499,10 @@ export function GarageView() {
           <button
             onClick={() => setShowExpand(true)}
             className="w-full mb-3 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500/15 to-emerald-500/5 border border-emerald-500/25 flex items-center justify-center gap-2 active:scale-[0.98] transition-transform shadow-[0_0_20px_rgba(34,197,94,0.08)]"
+            style={{
+              animation: 'expandPulse 2s ease-in-out infinite',
+              WebkitAnimation: 'expandPulse 2s ease-in-out infinite',
+            }}
           >
             <Plus size={20} className="text-emerald-400" />
             <span className="text-sm font-black text-emerald-300 tracking-wider">EXPAND FLEET</span>
@@ -362,22 +511,38 @@ export function GarageView() {
 
         {/* Next milestone */}
         {milestone && (
-          <GlassCard className="p-4 mb-3" glow glowColor="rgba(34,197,94,0.08)">
+          <GlassCard className="p-4 mb-3" glow glowColor="rgba(34,197,94,0.08)" intensity="strong">
             <div className="flex items-center justify-between mb-2">
               <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Next Milestone</span>
-              <span className="text-[10px] text-emerald-400 font-bold">{milestone.pct.toFixed(0)}%</span>
+              <span className="text-[10px] text-emerald-400 font-bold">
+                <RollingNumber value={milestone.pct} />%
+              </span>
             </div>
             <p className="text-sm font-bold text-white mb-2">🚗 {milestone.label}</p>
             <div className="flex items-center justify-between">
-              <span className="text-lg font-black text-emerald-400">{formatMoney(milestone.remainingNAD, settings)}</span>
+              <span className="text-lg font-black text-emerald-400">
+                <RollingNumber 
+                  value={milestone.remainingNAD} 
+                  formatFn={(n) => formatMoney(n, settings)}
+                  glowEffect
+                  glowColor="rgba(34,197,94,0.3)"
+                />
+              </span>
               <span className="text-xs text-zinc-600">remaining</span>
             </div>
-            <ProgressBar pct={milestone.pct} color="#22c55e" height={4} className="mt-2" />
+            <ProgressBar 
+              pct={milestone.pct} 
+              color="#22c55e" 
+              height={4} 
+              className="mt-2"
+              glow
+              showParticles={milestone.pct > 50}
+            />
           </GlassCard>
         )}
 
         {/* Fleet progress overview — circular ring */}
-        <GlassCard className="p-4 mb-4">
+        <GlassCard className="p-4 mb-4" intensity="strong" glow={fleetPct > 0} glowColor="rgba(34,197,94,0.08)">
           <div className="flex items-center gap-4">
             <FleetProgressRing
               pct={fleetPct}
@@ -385,10 +550,22 @@ export function GarageView() {
               strokeWidth={7}
               label={`${fleetPct.toFixed(0)}%`}
               sublabel="FLEET"
+              color="#22c55e"
+              glow={fleetPct > 0}
+              animated={fleetPct > 0}
+              showTicks={fleetPct > 0}
+              showPulse={fleetPct >= 100}
             />
             <div className="flex-1 min-w-0">
               <span className="text-xs text-zinc-500 font-bold uppercase tracking-wider block mb-1">Total Fleet Goal</span>
-              <div className="text-lg font-bold text-white truncate">{formatMoney(balance, settings)}</div>
+              <div className="text-lg font-bold text-white truncate">
+                <RollingNumber 
+                  value={balance} 
+                  formatFn={(n) => formatMoney(n, settings)}
+                  glowEffect
+                  glowColor="rgba(34,197,94,0.2)"
+                />
+              </div>
               <div className="text-sm text-zinc-600 mb-2">/ {formatMoney(goal, settings)}</div>
               <div className="flex gap-2">
                 <div className="flex-1 bg-white/[0.03] rounded-lg px-2 py-1.5 text-center">
@@ -409,6 +586,10 @@ export function GarageView() {
           <button
             onClick={() => handleAddFuel()}
             className="relative group active:scale-[0.97] transition-transform"
+            style={{
+              animation: 'actionPulse 2.5s ease-in-out infinite',
+              WebkitAnimation: 'actionPulse 2.5s ease-in-out infinite',
+            }}
           >
             <div className="bg-gradient-to-b from-emerald-500/20 to-emerald-500/5 border border-emerald-500/30 rounded-2xl py-4 flex flex-col items-center gap-1 shadow-[0_0_20px_rgba(34,197,94,0.1)]">
               <Fuel size={26} className="text-emerald-400" />
@@ -437,13 +618,17 @@ export function GarageView() {
 
       {/* Empty state */}
       {!state.firstDepositMade && (
-        <div className="px-4 pb-8">
-          <GlassCard className="p-6 text-center" glow glowColor="rgba(34,197,94,0.08)">
+        <div className="px-4 pb-8 relative z-10">
+          <GlassCard className="p-6 text-center" glow glowColor="rgba(34,197,94,0.08)" intensity="strong">
             <p className="text-sm font-bold text-zinc-300 mb-1">THE GARAGE IS WAITING.</p>
             <p className="text-xs text-zinc-500 mb-4">Your first vehicle starts with the first drop of fuel.</p>
             <button
               onClick={() => handleAddFuel()}
               className="w-full py-3.5 rounded-xl bg-emerald-500 text-black font-bold text-sm tracking-wide active:scale-95 transition-transform shadow-[0_0_20px_rgba(34,197,94,0.2)]"
+              style={{
+                animation: 'ctaGlow 2s ease-in-out infinite',
+                WebkitAnimation: 'ctaGlow 2s ease-in-out infinite',
+              }}
             >
               ⛽ ADD FIRST FUEL
             </button>
@@ -462,7 +647,10 @@ export function GarageView() {
         <VehicleDetail
           vehicleId={detailVehicle}
           open={true}
-          onClose={() => setDetailVehicle(null)}
+          onClose={() => {
+            setDetailVehicle(null);
+            setSelectedBay(null);
+          }}
         />
       )}
       <FleetForecast open={showForecast} onClose={() => setShowForecast(false)} />
@@ -471,6 +659,74 @@ export function GarageView() {
       <AchievementsView open={showAchievements} onClose={() => setShowAchievements(false)} />
       <BusinessMetrics open={showBusiness} onClose={() => setShowBusiness(false)} />
       <ExpandFleetModal open={showExpand} onClose={() => setShowExpand(false)} />
+
+      <style>
+        {`
+          @keyframes lightFlicker {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+          }
+          
+          @keyframes earningPulse {
+            0%, 100% { 
+              opacity: 1;
+              transform: scale(1);
+            }
+            50% { 
+              opacity: 0.7;
+              transform: scale(0.95);
+            }
+          }
+          
+          @keyframes floorGlow {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+          }
+          
+          @keyframes expandPulse {
+            0%, 100% { 
+              box-shadow: 0 0 20px rgba(34,197,94,0.08);
+            }
+            50% { 
+              box-shadow: 0 0 30px rgba(34,197,94,0.15);
+            }
+          }
+          
+          @keyframes actionPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+          }
+          
+          @keyframes ctaGlow {
+            0%, 100% { 
+              box-shadow: 0 0 20px rgba(34,197,94,0.2);
+            }
+            50% { 
+              box-shadow: 0 0 30px rgba(34,197,94,0.4);
+            }
+          }
+          
+          @keyframes expandBayIn {
+            0% {
+              opacity: 0;
+              transform: translateY(20px) scale(0.9);
+            }
+            100% {
+              opacity: 1;
+              transform: translateY(0) scale(1);
+            }
+          }
+          
+          @keyframes streakGlow {
+            0%, 100% { 
+              box-shadow: 0 0 10px rgba(249,115,22,0.2);
+            }
+            50% { 
+              box-shadow: 0 0 20px rgba(249,115,22,0.4);
+            }
+          }
+        `}
+      </style>
     </div>
   );
 }
@@ -482,10 +738,15 @@ function ToolButton({ icon, label, onClick }: { icon: string; label: string; onC
     RotateCw: <RotateCw size={18} className="text-cyan-400" />,
     BarChart3: <BarChart3 size={18} className="text-blue-400" />,
   };
+  
   return (
     <button
       onClick={onClick}
       className="bg-white/[0.03] border border-white/[0.06] rounded-xl py-3 px-3 flex items-center gap-2.5 active:scale-95 transition-transform"
+      style={{
+        transition: 'all 0.3s ease',
+        WebkitTransition: 'all 0.3s ease',
+      }}
     >
       {icons[icon]}
       <span className="text-[11px] font-bold text-zinc-300 tracking-wider">{label}</span>
@@ -504,8 +765,14 @@ function DailyBriefing({ fleetPct, v1Pct, streak, milestone, settings }: {
   const greeting = hour < 12 ? 'GOOD MORNING' : hour < 18 ? 'GOOD AFTERNOON' : 'GOOD EVENING';
 
   return (
-    <div className="px-4 pt-2 pb-2" style={{ paddingTop: 'max(0.5rem, env(safe-area-inset-top))' }}>
-      <div className="bg-gradient-to-r from-emerald-500/10 via-white/[0.03] to-transparent border border-emerald-500/15 rounded-2xl p-4 animate-[fadeIn_0.5s_ease-out]">
+    <div className="px-4 pt-2 pb-2 relative z-10" style={{ paddingTop: 'max(0.5rem, env(safe-area-inset-top))' }}>
+      <div 
+        className="bg-gradient-to-r from-emerald-500/10 via-white/[0.03] to-transparent border border-emerald-500/15 rounded-2xl p-4"
+        style={{
+          animation: 'fadeIn 0.5s ease-out',
+          WebkitAnimation: 'fadeIn 0.5s ease-out',
+        }}
+      >
         <h3 className="text-sm font-black text-emerald-300 tracking-wide mb-1">{greeting}</h3>
         <p className="text-xs text-zinc-400 leading-relaxed">
           Your fleet is {fleetPct.toFixed(0)}% built.<br />
@@ -528,10 +795,20 @@ function FleetCompleteOverlay({ monthlyIncome, vehicleCount, onClose, onExpand }
   const annual = monthlyIncome * 12;
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/90 backdrop-blur-xl animate-[fadeIn_0.5s_ease-out] p-6">
+    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/90 backdrop-blur-xl p-6"
+      style={{
+        animation: 'fadeIn 0.5s ease-out',
+        WebkitAnimation: 'fadeIn 0.5s ease-out',
+      }}
+    >
       <Confetti active={true} />
       <div className="text-center max-w-sm">
-        <h1 className="text-3xl font-black text-emerald-400 tracking-tight mb-4 animate-[slideUp_0.5s_ease-out]">
+        <h1 className="text-3xl font-black text-emerald-400 tracking-tight mb-4"
+          style={{
+            animation: 'slideUp 0.5s ease-out',
+            WebkitAnimation: 'slideUp 0.5s ease-out',
+          }}
+        >
           FLEET COMPLETE
         </h1>
         <div className="text-5xl mb-4">🚗 🚗 🚗</div>
